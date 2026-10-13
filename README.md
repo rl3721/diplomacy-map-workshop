@@ -248,7 +248,7 @@ continental, peninsula, and horizontal wrap. The script replaces its named files
 
 On the earlier peninsula seed-42 shape-comparison run, raw mean perimeter efficiency improved from **0.510 to 0.856**,
 worst-decile efficiency from **0.232 to 0.721**, and minimum from **0.180 to 0.675**.
-The default run has no shape-review flags. Province IDs are reassigned when generation changes, so
+That earlier run had no shape-review flags. Province IDs are reassigned when generation changes, so
 new province 42 is not necessarily the former province 42. Terrain remains unchanged.
 
 More compact provinces can depart further from their sampled area targets; the size score still reports
@@ -258,9 +258,8 @@ and narrow land/water components can still impose irregular regions; the control
 
 ## Unclassified terrain study
 
-The default terrain preset is now `islands`: initial land fraction 0.40, feature scale 0.09,
-roughness 0.20, and equal horizontal/vertical feature stretch. This is a provisional visual starting
-point pending user classification. `province_style=peninsula` independently retains the previous
+The initial provisional island preset used land fraction 0.40, feature scale 0.09, and roughness 0.20.
+It has now been replaced by the user-selected group-8 preset described below. `province_style=peninsula` independently retains the previous
 99-province default and the same inland, sea, and degree targets. Setting `terrain_style` no longer
 changes those province targets. To reproduce older continental/islands target behavior explicitly,
 set `province_style` to the corresponding former terrain style.
@@ -286,3 +285,30 @@ python terrain_sweep.py --seed 123 --broad-scale 0.4 --fine-scale 0.06 --smooth 
 
 The study stores `02_cleaned.svg` and `parameters.json` for each map, plus a top-level `manifest.json`
 and gallery. Existing province inspection maps are preserved. Generated outputs remain git-ignored.
+
+## Selected terrain presets and 30-map province study
+
+The user classified the terrain study as follows. These settings now define the named terrain
+presets in the application; they retain the study's 40% initial land and equal X/Y feature stretch.
+
+| Terrain preset | Original group | Feature scale | Roughness |
+|---|---:|---:|---:|
+| continental | 4 | 0.180000 | 0.300000 |
+| peninsula | 6 | 0.113393 | 0.433333 |
+| islands | 8 | 0.071433 | 0.566667 |
+
+The default remains island terrain with the independent peninsula province-target profile.
+The classification and hashes of the original fifteen selected terrain examples are saved in
+`terrain_selection.json`. This allows verification that the first five terrain samples in each
+new group exactly reproduce the earlier study.
+
+Run `python classified_study.py` to generate ten maps per preset and open `output/index.html`.
+Every map uses exactly 99 provinces, seven-player settings, size/inland/connectivity ratios of 1.0,
+`province_style=peninsula`, division seed 42, and 12 candidate divisions. Terrain seeds are shared
+across groups; the first five match the prior study and five more extend it. No gameplay features
+(SCs, powers, impassables) are assigned. All three SVG stages, map data, parameters, and score
+reports are available for each sample. Use IDs such as `G06-M07` for feedback.
+
+The script uses three worker processes by default (`--workers 1` runs sequentially), writes an
+incrementally updated gallery, and does not delete unrelated output. The old output was explicitly
+cleared for the user-requested regeneration. Generated files remain git-ignored.

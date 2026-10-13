@@ -1,0 +1,115 @@
+{
+  "study_seed": 20261013,
+  "classifications": {
+    "continental": 4,
+    "peninsula": 6,
+    "islands": 8
+  },
+  "selected_examples": [
+    {
+      "style": "continental",
+      "group": 4,
+      "id": "G04-M1",
+      "seed": 1963387146,
+      "cleaned_svg_sha256": "52d69c375e4053bd8e76234e7436c373f3f4e6a2edb7277dd2137473d0c99e15"
+    },
+    {
+      "style": "continental",
+      "group": 4,
+      "id": "G04-M2",
+      "seed": 830507039,
+      "cleaned_svg_sha256": "8e55218a58dcbd2b8591ad1345558be27546fea3318db5f4b3ea5894b93fa9dd"
+    },
+    {
+      "style": "continental",
+      "group": 4,
+      "id": "G04-M3",
+      "seed": 1408425178,
+      "cleaned_svg_sha256": "3bc4e8c9231c58307e438b23299057157a524949676a3ae54be1b2dbfed899d7"
+    },
+    {
+      "style": "continental",
+      "group": 4,
+      "id": "G04-M4",
+      "seed": 2034226161,
+      "cleaned_svg_sha256": "4063feddf4e641b396eab673c3008101e8cfcef98eca4154a182ececb3832df1"
+    },
+    {
+      "style": "continental",
+      "group": 4,
+      "id": "G04-M5",
+      "seed": 416523699,
+      "cleaned_svg_sha256": "594443cb4950c4a94709b212ab4817cfa1edaa5a5c60fb94dcb09f78c63d1892"
+    },
+    {
+      "style": "peninsula",
+      "group": 6,
+      "id": "G06-M1",
+      "seed": 1963387146,
+      "cleaned_svg_sha256": "4042eac9bb79a5970c9f9c62bcd87f4c9b98d8af64c961cdc2abe7e3deaef740"
+    },
+    {
+      "style": "peninsula",
+      "group": 6,
+      "id": "G06-M2",
+      "seed": 830507039,
+      "cleaned_svg_sha256": "781b83628cf52d4931785125dd26163c939be09411c89f05326057c2b43f7150"
+    },
+    {
+      "style": "peninsula",
+      "group": 6,
+      "id": "G06-M3",
+      "seed": 1408425178,
+      "cleaned_svg_sha256": "daf59b0824b17f7d911018897bb582d490cf735be3c3ed8f47b1d7e0434b9b35"
+    },
+    {
+      "style": "peninsula",
+      "group": 6,
+      "id": "G06-M4",
+      "seed": 2034226161,
+      "cleaned_svg_sha256": "6532518f8f1cb9fc264be2dc3d8a750eb436edc2e510b89d0960700b2fe0e67a"
+    },
+    {
+      "style": "peninsula",
+      "group": 6,
+      "id": "G06-M5",
+      "seed": 416523699,
+      "cleaned_svg_sha256": "aedb70b10c14965fcc9b3139c25ab01bcd27db11bd9b710b8d335d1ab1f8cd41"
+    },
+    {
+      "style": "islands",
+      "group": 8,
+      "id": "G08-M1",
+      "seed": 1963387146,
+      "cleaned_svg_sha256": "43095f33ab372eff91f38f52067071c6741f0f31a7cc49b230f712b92ce5e427"
+    },
+    {
+      "style": "islands",
+      "group": 8,
+      "id": "G08-M2",
+      "seed": 830507039,
+      "cleaned_svg_sha256": "2b0d3719dac51d92df981d8174a136c344a46a717b88acb389cc884f4a7e4af9"
+    },
+    {
+      "style": "islands",
+      "group": 8,
+      "id": "G08-M3",
+      "seed": 1408425178,
+      "cleaned_svg_sha256": "405ad96f824628918080a3938d838259f083ad3c1e6ac5af78f0de35bb61ec98"
+    },
+    {
+      "style": "islands",
+      "group": 8,
+      "id": "G08-M4",
+      "seed": 2034226161,
+      "cleaned_svg_sha256": "fb41ba9107a54d7c328fe8a69bb1358320dd542e93a88871b80ea07afe0ce401"
+    },
+    {
+      "style": "islands",
+      "group": 8,
+      "id": "G08-M5",
+      "seed": 416523699,
+      "cleaned_svg_sha256": "46af3f52db8ed2cd0e35719b2869477cf014cc5857be4956b9679f05c69c6da1"
+    }
+  ]
+}

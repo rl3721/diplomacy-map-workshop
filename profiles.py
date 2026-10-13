@@ -6,14 +6,17 @@ from pathlib import Path
 import statistics
 
 
-STYLES = {
-    'peninsula': {'land_fraction': .58, 'landmass_scale': .16, 'roughness': .25,
-                  'stretch': (1.5, .8), 'inland_factor': 1.0, 'sea_fraction': None},
-    'continental': {'land_fraction': .68, 'landmass_scale': .34, 'roughness': .2,
-                    'stretch': (1.0, 1.0), 'inland_factor': 1.8, 'sea_fraction': .22},
-    'islands': {'land_fraction': .4, 'landmass_scale': .09, 'roughness': .2,
-                'stretch': (1.0, 1.0), 'inland_factor': .3, 'sea_fraction': .4},
-}
+# User classifications of the 2026-10-13 terrain study. The original study used
+# 40% land and isotropic features for every group. Province modifiers stay separate.
+TERRAIN_GROUPS = {'continental': 4, 'peninsula': 6, 'islands': 8}
+STYLES = {}
+for name, group in TERRAIN_GROUPS.items():
+    t = (group - 1) / 9
+    inland_factor, sea_fraction = {'peninsula': (1.0, None), 'continental': (1.8, .22),
+                                  'islands': (.3, .4)}[name]
+    STYLES[name] = {'land_fraction': .4, 'landmass_scale': .36 * (.045 / .36) ** t,
+                    'roughness': .1 + (.7 - .1) * t, 'stretch': (1.0, 1.0),
+                    'inland_factor': inland_factor, 'sea_fraction': sea_fraction}
 
 
 @lru_cache(maxsize=1)
