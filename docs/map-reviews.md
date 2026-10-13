@@ -4,6 +4,11 @@
 
 Status: assessment only. No review interface, API or storage has been implemented.
 
+See the [Cloudflare implementation guide](cloudflare.md) for repository-specific
+hosting and deployment steps. Inspection of existing map files showed that some
+already exceed D1's row limit, so use private R2 for full snapshots and D1 for
+review records and bounded metadata rather than storing full maps in D1.
+
 ## Visitor flow
 
 After a successful generation, show **Review this map** alongside the result.
