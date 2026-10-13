@@ -12,9 +12,10 @@ const boot = (async () => {
   await Promise.all(files.map(async name => {
     const source = await fetch(new URL(`python/${name}`, import.meta.url));
     if (!source.ok) throw new Error(`Could not load ${name}.`);
+    python.FS.mkdirTree(`/workshop/${name.slice(0, name.lastIndexOf('/'))}`);
     python.FS.writeFile(`/workshop/${name}`, await source.text(), {encoding: 'utf8'});
   }));
-  python.runPython("import sys\nsys.path.insert(0, '/workshop')\nfrom browser_api import request");
+  python.runPython("import sys\nsys.path.insert(0, '/workshop')\nfrom mapgen.browser_api import request");
   self.postMessage({type: 'ready'});
 })();
 boot.catch(error => self.postMessage({type: 'fatal', error: `Browser engine could not load: ${error.message}. Check your connection and reload.`}));

@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python app.py
+python -m mapgen.app
 if errorlevel 1 pause

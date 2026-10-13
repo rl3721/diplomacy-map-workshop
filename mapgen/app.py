@@ -1,0 +1,187 @@
+"""Local Diplomacy Map Workshop UI. Run python -m mapgen.app; no third-party packages required."""
+import argparse
+from dataclasses import asdict, fields
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+import math
+from pathlib import Path
+import re
+import secrets
+import threading
+from urllib.parse import urlsplit
+import webbrowser
+
+from .generator import Config, generate
+from .profiles import STYLES, targets_for
+from .scoring import connectivity_policy
+from .supply_centers import center_budget
+from .random_seeds import derive_seeds
+
+ROOT = Path(__file__).resolve().parents[1]
+from .workshop_core import ARTIFACTS, LOCKED_SETTINGS, province_limits, parse_config, result_summary, prepare_rerun
+
+
+class Workshop:
+    def __init__(self, output):
+        self.output = Path(output)
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
+        self.jobs = {}
+        self.active = None
+        self.token = secrets.token_urlsafe(32)
+
+    def latest(self):
+        folders = sorted((p for p in self.output.iterdir() if p.is_dir() and re.fullmatch(r'[a-f0-9]{16}', p.name)),
+                         key=lambda p: p.stat().st_mtime, reverse=True)
+        for folder in folders:
+            try:
+                return result_summary(folder, folder.name)
+            except (OSError, ValueError, KeyError):
+                continue
+        return None
+
+    def rerun(self, values, source_id, stage):
+        return self.start(*prepare_rerun(self.output, values, source_id, stage))
+
+    def start(self, config, resume=None, stage='terrain'):
+        with self.lock:
+            if self.active is not None:
+                raise RuntimeError('A map is already generating. Wait for it to finish.')
+            job_id = secrets.token_hex(8)
+            self.active = job_id
+            self.jobs[job_id] = {'id': job_id, 'state': 'running', 'message': 'Starting map generation', 'progress': 0}
+        threading.Thread(target=self.run, args=(job_id, config, resume, stage), daemon=True).start()
+        return job_id
+
+    def run(self, job_id, config, resume=None, stage='terrain'):
+        def progress(message):
+            candidate = re.search(r'candidate (\d+)/(\d+)', message)
+            fraction = (.15 + .75 * int(candidate[1]) / int(candidate[2]) if candidate else
+                        .05 if message.startswith('1/') else .1 if message.startswith('2/') else
+                        .95 if message.startswith('5/') else None)
+            with self.lock:
+                self.jobs[job_id]['message'] = message.replace('Province candidate', 'Iteration')
+                if fraction is not None:
+                    self.jobs[job_id]['progress'] = fraction
+        try:
+            folder = self.output / job_id
+            generate(config, folder, progress, resume=resume, stage=stage)
+            result = result_summary(folder, job_id)
+            with self.lock:
+                self.jobs[job_id] = result
+                self.active = None
+        except Exception as error:
+            with self.lock:
+                self.jobs[job_id].update(state='error', message=str(error), progress=0)
+                self.active = None
+
+    def job(self, job_id):
+        with self.lock:
+            return dict(self.jobs[job_id]) if job_id in self.jobs else None
+
+
+def handler_for(workshop):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def send_bytes(self, content, content_type, status=200):
+            self.send_response(status)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(content)))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'")
+            self.end_headers()
+            self.wfile.write(content)
+
+        def json_response(self, value, status=200):
+            self.send_bytes(json.dumps(value).encode('utf-8'), 'application/json; charset=utf-8', status)
+
+        def valid_host(self):
+            return self.headers.get('Host') in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}')
+
+        def do_GET(self):
+            if not self.valid_host():
+                return self.json_response({'error': 'Invalid host'}, 403)
+            path = urlsplit(self.path).path
+            if path == '/api/config':
+                defaults = asdict(Config())
+                defaults.update(global_seed=None)
+                return self.json_response({'defaults': defaults, 'presets': STYLES,
+                                           'targets': targets_for(Config()), 'token': workshop.token,
+                                           'province_bases': {p: province_limits(p, 500000)[0] for p in range(1, 101)}})
+            if path == '/api/latest':
+                return self.json_response(workshop.latest())
+            if path.startswith('/api/jobs/'):
+                job = workshop.job(path.rsplit('/', 1)[-1])
+                return self.json_response(job or {'error': 'Unknown generation'}, 200 if job else 404)
+            if path in ('/', '/index.html', '/style.css', '/ui.js'):
+                name = 'index.html' if path == '/' else path[1:]
+                mime = {'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript'}[name.rsplit('.', 1)[1]]
+                return self.send_bytes((ROOT / 'web' / name).read_bytes(), mime + '; charset=utf-8')
+            match = re.fullmatch(r'/runs/([a-f0-9]{16})/([^/]+)', path)
+            if match and match[2] in ARTIFACTS:
+                file = workshop.output / match[1] / match[2]
+                if file.is_file():
+                    mime = 'image/svg+xml' if file.suffix == '.svg' else 'application/json' if file.suffix == '.json' else 'text/html'
+                    return self.send_bytes(file.read_bytes(), mime + '; charset=utf-8')
+            return self.json_response({'error': 'Not found'}, 404)
+
+        def do_POST(self):
+            if not self.valid_host() or self.headers.get('X-Workshop-Token') != workshop.token:
+                return self.json_response({'error': 'Reload the application to reconnect.'}, 403)
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 65536:
+                    raise ValueError('Invalid request size')
+                body = json.loads(self.rfile.read(length))
+                path = urlsplit(self.path).path
+                if path == '/api/rerun':
+                    if not isinstance(body, dict):
+                        raise ValueError('Rerun request must be an object')
+                    job_id = workshop.rerun(body.get('parameters'), body.get('source_id'), body.get('stage'))
+                    return self.json_response({'id': job_id}, 202)
+                if path not in ('/api/targets', '/api/generate'):
+                    return self.json_response({'error': 'Not found'}, 404)
+                config = parse_config(body, random_seeds=path == '/api/generate')
+                if path == '/api/targets':
+                    return self.json_response({**targets_for(config), 'supply_center_budget': center_budget(config)})
+                job_id = workshop.start(config)
+                return self.json_response({'id': job_id}, 202)
+            except (ValueError, TypeError) as error:
+                return self.json_response({'error': str(error)}, 400)
+            except RuntimeError as error:
+                return self.json_response({'error': str(error)}, 409)
+    return Handler
+
+
+def make_server(port=8765, output=None):
+    workshop = Workshop(output or ROOT / 'output' / 'app-runs')
+    return ThreadingHTTPServer(('127.0.0.1', port), handler_for(workshop)), workshop
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--no-open', action='store_true')
+    parser.add_argument('--output', type=Path, default=ROOT / 'output' / 'app-runs')
+    args = parser.parse_args()
+    try:
+        server, _ = make_server(args.port, args.output)
+    except OSError as error:
+        parser.exit(2, f'Cannot start the local application: {error}. Try --port 8766.\n')
+    url = f'http://127.0.0.1:{server.server_port}'
+    print(f'Diplomacy Map Workshop: {url}\nMaps saved in {args.output.resolve()}\nPress Ctrl+C to stop.', flush=True)
+    if not args.no_open:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+if __name__ == '__main__':
+    main()
