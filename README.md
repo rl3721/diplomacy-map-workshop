@@ -12,9 +12,13 @@ From this directory:
 python app.py
 ```
 
-The desktop form runs generation in a background thread. Open the preview after completion.
-Tkinter ships with standard Windows Python; Linux installations may need their OS tkinter package.
-The command-line interface does not require tkinter:
+This opens **Map workshop** at `http://127.0.0.1:8765` in your browser. Generation runs locally
+in a background thread; no internet connection or extra Python packages are required. You can also
+double-click `Start Map Workshop.cmd` on Windows. Keep the terminal open while using the app.
+Use `python app.py --port 8766` if the default port is occupied, or `--no-open` to start without
+opening a browser. The old Tkinter editor remains available with `python legacy_app.py`.
+
+The command-line generator remains available:
 
 ```powershell
 python generator.py --config example.json --output output --open
@@ -142,7 +146,7 @@ against the weighted score. It does not promise gameplay balance.
 
 ## Weighted, size-adaptive scoring
 
-The desktop form has **Score weights** and **Score tolerances** tabs. JSON and CLI expose the same fields.
+The browser UI exposes weights and tolerances under **Provinces > Advanced provinces > Scoring**; the legacy desktop form retains its scoring tabs. JSON and CLI expose the same fields.
 Existing parameter files remain compatible. Higher tolerance is more forgiving; higher weight gives a
 component more influence. Zero weight disables its contribution. At least one weight must be positive.
 
@@ -213,7 +217,7 @@ bundled as `classic_reference.json` so scoring needs no network connection.
 Count distinct playable neighboring provinces, collapse named coasts, exclude Switzerland. Adjacency is
 geographical, not army/fleet move legality. The reference has 14 inland, 42 coastal, and 19 sea provinces.
 
-The desktop app and CLI share exactly the same generator. No network requests are made during generation.
+The browser app, legacy desktop editor, and CLI share exactly the same generator. No network requests are made during generation.
 
 ## vDiplomacy comparison research
 
@@ -312,3 +316,34 @@ reports are available for each sample. Use IDs such as `G06-M07` for feedback.
 The script uses three worker processes by default (`--workers 1` runs sequentially), writes an
 incrementally updated gallery, and does not delete unrelated output. The old output was explicitly
 cleared for the user-requested regeneration. Generated files remain git-ignored.
+
+## Map workshop interface
+
+- **Terrain:** named preset buttons, land-coverage/feature-scale/elevation-detail sliders, wrap checkbox,
+  optional terrain seed, and advanced resolution, aspect ratio, and cleanup controls. Preset selection
+  resets its three terrain sliders and does not change province targets.
+- **Provinces:** players, size/inland/connectivity ratios, shape regularity, size flexibility, optional
+  exact-count checkbox, optional province seed, and advanced distribution, candidate, repair, target,
+  and scoring controls. The derived target summary updates as you adjust settings.
+- **Preview:** elevation, cleaned terrain, and province tabs; zoom and fit; scroll to pan a zoomed map;
+  download the displayed SVG; open Details for scores, shape-review flags, statistics, exact parameters,
+  and full map data. The previous map stays visible if a subsequent generation fails.
+- **Supply centers and Powers:** separate reserved panels, visibly marked Coming later. No SC/power
+  generation is implied or performed.
+
+Blank seed boxes request fresh random seeds. Enter a whole number to reproduce a run. To reroll
+province division while keeping terrain fixed, reuse the shown terrain seed and leave the province
+seed blank. The actual seeds are displayed below the preview and included in each run's parameters.
+Save settings downloads the current controls; blanks remain random. Download Exact parameters from
+Details to save a generated map's actual seeds. Load settings accepts either JSON format and validates
+it before replacing controls. Refresh restores the latest successful map and its exact parameters.
+
+New maps are saved in unique folders under `output/app-runs/`. The existing 30-map gallery remains
+untouched. Set `--output <folder>` to choose a different run directory. One generation runs at a time,
+with progress reported in the status bar; controls are disabled during generation. Closing the terminal
+stops the server. The server binds only to localhost and serves only UI files and generated artifacts.
+
+The UI uses native HTML/CSS/JavaScript and Python's standard-library HTTP server, preserving the
+project's dependency-free runtime. Desktop uses a settings sidebar and map workspace; small screens
+stack the preview above the settings. The code-native interface follows the visual concept in
+`ui/design/concept.png`; actual maps remain generated SVGs rather than mockup artwork.

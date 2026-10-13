@@ -1,190 +1,201 @@
-"""Desktop parameter editor. Run: python app.py"""
+"""Local Map workshop UI. Run python app.py; no third-party packages required."""
+import argparse
 from dataclasses import asdict, fields
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
-import queue
+import re
+import secrets
 import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from urllib.parse import urlsplit
 import webbrowser
 
 from generator import Config, generate
-from profiles import targets_for
+from profiles import STYLES, targets_for
+
+ROOT = Path(__file__).resolve().parent
+ARTIFACTS = {'01_elevation.svg', '02_cleaned.svg', '03_provinces.svg',
+             'parameters.json', 'report.json', 'map.json', 'index.html'}
 
 
-HELP = {
-    'players': 'Base province count follows players (no powers assigned yet)',
-    'size_ratio': '0.8 to 1.2 times the variant provinces-per-player baseline',
-    'inland_ratio': '0.8 to 1.2 times the province-style inland share',
-    'connectivity_ratio': '0.8 to 1.2 times reference neighbor counts; a soft target',
-    'terrain_style': 'Elevation preset only; does not change province targets',
-    'province_style': 'Separate province targets; default remains peninsula',
-    'reference_profile': 'Auto uses Classic, Ancient Mediterranean and Modern II',
-    'division_seed': 'Change province boundaries while preserving terrain',
-    'candidates': 'Keep the highest weighted score from 1 to 100 divisions',
-    'wrap_x': 'Connect left and right edges; complete hex rows required',
-    'hex_count': 'Drawing resolution: 1–500,000',
-    'aspect_ratio': 'Map width / height: 0.2–5',
-    'seed': 'Integer; same parameters reproduce the same map',
-    'land_fraction': '-1 = terrain preset; land area fraction: 0–1',
-    'landmass_scale': '-1 = preset; larger gives broader terrain: 0.01–2',
-    'roughness': '-1 = preset; elevation detail: 0–1',
-    'min_land_component': 'Remove islands smaller than this many hexes',
-    'min_water_component': 'Fill water bodies smaller than this many hexes',
-    'province_count': '0 = player-based count; positive = exact override',
-    'land_province_fraction': '-1 = variant baseline; land province fraction: 0–1',
-    'size_variation': 'Lognormal spread: 0 = equal targets, up to 2',
-    'compactness': 'Compact growth preference: 0–1',
-    'shape_regularity': '0–1: discourage extra internal borders and remote extensions',
-    'size_flexibility': '0–1: allowed size factor above/below target (0.3 = factor 1.3)',
-    'repair_passes': 'Boundary-adjustment passes: 0–30',
-    'weight_degree': 'Selected variant neighbor-count distributions',
-    'weight_composition': 'Terrain-adjusted inland / coastal / sea proportions',
-    'weight_global': 'Travel distances, fragmentation and bottlenecks',
-    'weight_size': 'Fit to sampled size targets',
-    'weight_shape': 'Compact perimeter preference',
-    'degree_tolerance': 'Zero credit at this neighbor-distribution distance',
-    'composition_tolerance': 'Zero credit at this total-variation distance',
-    'path_tolerance': 'Relative error after sqrt(province count) normalization',
-    'fragmentation_tolerance': 'Component-profile and unreachable-pair mismatch',
-    'bottleneck_tolerance': 'Articulation / bridge rate mismatch',
-    'size_tolerance': 'Mean log size error; 0.405 is a factor of 1.5',
-    'shape_tolerance': 'Mean perimeter inefficiency; higher is more forgiving',
-}
+def parse_config(values, random_seeds=True):
+    if not isinstance(values, dict):
+        raise ValueError('Parameters must be a JSON object')
+    unknown = set(values) - {f.name for f in fields(Config)}
+    if unknown:
+        raise ValueError('Unknown parameters: ' + ', '.join(sorted(unknown)))
+    settings = dict(values)
+    for name in ('seed', 'division_seed'):
+        if settings.get(name) in (None, ''):
+            settings[name] = secrets.randbelow(2 ** 31) if random_seeds else 42
+    config = Config(**settings)
+    config.validate()
+    return config
+
+
+def result_summary(folder, job_id):
+    report = json.loads((folder / 'report.json').read_text(encoding='utf-8'))
+    parameters = json.loads((folder / 'parameters.json').read_text(encoding='utf-8'))
+    return {'id': job_id, 'state': 'complete', 'message': 'Map ready', 'progress': 1,
+            'parameters': parameters, 'province_count': report['province_count'],
+            'categories': report['scoring']['composition']['actual_counts'],
+            'scoring': report['scoring'], 'elapsed_seconds': report['elapsed_seconds'],
+            'degree': report['degree_statistics']['all'],
+            'urls': {name: f'/runs/{job_id}/{name}' for name in ARTIFACTS}}
+
+
+class Workshop:
+    def __init__(self, output):
+        self.output = Path(output)
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
+        self.jobs = {}
+        self.active = None
+        self.token = secrets.token_urlsafe(32)
+
+    def latest(self):
+        folders = sorted((p for p in self.output.iterdir() if p.is_dir() and re.fullmatch(r'[a-f0-9]{16}', p.name)),
+                         key=lambda p: p.stat().st_mtime, reverse=True)
+        for folder in folders:
+            try:
+                return result_summary(folder, folder.name)
+            except (OSError, ValueError, KeyError):
+                continue
+        return None
+
+    def start(self, config):
+        with self.lock:
+            if self.active is not None:
+                raise RuntimeError('A map is already generating. Wait for it to finish.')
+            job_id = secrets.token_hex(8)
+            self.active = job_id
+            self.jobs[job_id] = {'id': job_id, 'state': 'running', 'message': 'Starting map generation', 'progress': 0}
+        threading.Thread(target=self.run, args=(job_id, config), daemon=True).start()
+        return job_id
+
+    def run(self, job_id, config):
+        def progress(message):
+            candidate = re.search(r'candidate (\d+)/(\d+)', message)
+            fraction = (.15 + .75 * int(candidate[1]) / int(candidate[2]) if candidate else
+                        .05 if message.startswith('1/') else .1 if message.startswith('2/') else
+                        .95 if message.startswith('5/') else None)
+            with self.lock:
+                self.jobs[job_id]['message'] = message
+                if fraction is not None:
+                    self.jobs[job_id]['progress'] = fraction
+        try:
+            folder = self.output / job_id
+            generate(config, folder, progress)
+            result = result_summary(folder, job_id)
+            with self.lock:
+                self.jobs[job_id] = result
+        except Exception as error:
+            with self.lock:
+                self.jobs[job_id].update(state='error', message=str(error), progress=0)
+        finally:
+            with self.lock:
+                self.active = None
+
+    def job(self, job_id):
+        with self.lock:
+            return dict(self.jobs[job_id]) if job_id in self.jobs else None
+
+
+def handler_for(workshop):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def send_bytes(self, content, content_type, status=200):
+            self.send_response(status)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(content)))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'")
+            self.end_headers()
+            self.wfile.write(content)
+
+        def json_response(self, value, status=200):
+            self.send_bytes(json.dumps(value).encode('utf-8'), 'application/json; charset=utf-8', status)
+
+        def valid_host(self):
+            return self.headers.get('Host') in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}')
+
+        def do_GET(self):
+            if not self.valid_host():
+                return self.json_response({'error': 'Invalid host'}, 403)
+            path = urlsplit(self.path).path
+            if path == '/api/config':
+                defaults = asdict(Config())
+                defaults.update(seed=None, division_seed=None)
+                return self.json_response({'defaults': defaults, 'presets': STYLES,
+                                           'targets': targets_for(Config()), 'token': workshop.token})
+            if path == '/api/latest':
+                return self.json_response(workshop.latest())
+            if path.startswith('/api/jobs/'):
+                job = workshop.job(path.rsplit('/', 1)[-1])
+                return self.json_response(job or {'error': 'Unknown generation'}, 200 if job else 404)
+            if path in ('/', '/index.html', '/style.css', '/ui.js'):
+                name = 'index.html' if path == '/' else path[1:]
+                mime = {'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript'}[name.rsplit('.', 1)[1]]
+                return self.send_bytes((ROOT / 'ui' / name).read_bytes(), mime + '; charset=utf-8')
+            match = re.fullmatch(r'/runs/([a-f0-9]{16})/([^/]+)', path)
+            if match and match[2] in ARTIFACTS:
+                file = workshop.output / match[1] / match[2]
+                if file.is_file():
+                    mime = 'image/svg+xml' if file.suffix == '.svg' else 'application/json' if file.suffix == '.json' else 'text/html'
+                    return self.send_bytes(file.read_bytes(), mime + '; charset=utf-8')
+            return self.json_response({'error': 'Not found'}, 404)
+
+        def do_POST(self):
+            if not self.valid_host() or self.headers.get('X-Workshop-Token') != workshop.token:
+                return self.json_response({'error': 'Reload the application to reconnect.'}, 403)
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 65536:
+                    raise ValueError('Invalid request size')
+                body = json.loads(self.rfile.read(length))
+                path = urlsplit(self.path).path
+                if path not in ('/api/targets', '/api/generate'):
+                    return self.json_response({'error': 'Not found'}, 404)
+                config = parse_config(body, random_seeds=path == '/api/generate')
+                if path == '/api/targets':
+                    return self.json_response(targets_for(config))
+                job_id = workshop.start(config)
+                return self.json_response({'id': job_id}, 202)
+            except (ValueError, TypeError) as error:
+                return self.json_response({'error': str(error)}, 400)
+            except RuntimeError as error:
+                return self.json_response({'error': str(error)}, 409)
+    return Handler
+
+
+def make_server(port=8765, output=None):
+    workshop = Workshop(output or ROOT / 'output' / 'app-runs')
+    return ThreadingHTTPServer(('127.0.0.1', port), handler_for(workshop)), workshop
 
 
 def main():
-    root = tk.Tk()
-    root.title('Diplomacy Province Generator')
-    root.geometry('940x800')
-    frame = ttk.Frame(root, padding=22)
-    frame.pack(fill='both', expand=True)
-    ttk.Label(frame, text='Province map generator', font=('Segoe UI', 20, 'bold')).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0, 8))
-    ttk.Label(frame, text='Elevation → terrain cleanup → connected provinces → SVG exports').grid(row=1, column=0, columnspan=3, sticky='w', pady=(0, 18))
-    defaults = Config()
-    variables = {}
-    notebook = ttk.Notebook(frame)
-    notebook.grid(row=2, column=0, columnspan=3, sticky='nsew')
-    panels = {}
-    for name in ('Map', 'Terrain', 'Provinces', 'Score weights', 'Score tolerances'):
-        panel = ttk.Frame(notebook, padding=12)
-        notebook.add(panel, text=name)
-        panels[name] = panel
-    rows = {name: 0 for name in panels}
-    for field in fields(defaults):
-        name = ('Score weights' if field.name.startswith('weight_') else
-                'Score tolerances' if field.name.endswith('_tolerance') else
-                'Map' if field.name in ('players', 'size_ratio', 'inland_ratio', 'connectivity_ratio', 'terrain_style', 'reference_profile', 'seed', 'division_seed', 'candidates', 'wrap_x') else
-                'Terrain' if field.name in ('hex_count', 'aspect_ratio', 'land_fraction', 'landmass_scale', 'roughness', 'min_land_component', 'min_water_component') else 'Provinces')
-        panel, row = panels[name], rows[name]
-        rows[name] += 1
-        variable = tk.StringVar(value=str(getattr(defaults, field.name)))
-        variables[field.name] = variable
-        ttk.Label(panel, text=field.name.replace('_', ' ').capitalize()).grid(row=row, column=0, sticky='w', pady=5)
-        if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x'):
-            values = {'terrain_style': ('peninsula', 'continental', 'islands'),
-                      'province_style': ('peninsula', 'continental', 'islands'),
-                      'reference_profile': ('auto', 'classic', 'peninsula', 'world'),
-                      'wrap_x': ('False', 'True')}[field.name]
-            control = ttk.Combobox(panel, textvariable=variable, values=values, state='readonly', width=16)
-        elif field.name in ('size_ratio', 'inland_ratio', 'connectivity_ratio'):
-            control = ttk.Spinbox(panel, textvariable=variable, from_=.8, to=1.2, increment=.05, width=16)
-        else:
-            control = ttk.Entry(panel, textvariable=variable, width=18)
-        control.grid(row=row, column=1, padx=12)
-        ttk.Label(panel, text=HELP[field.name], wraplength=430).grid(row=row, column=2, sticky='w')
-    ttk.Label(panels['Score weights'], text='Weights are normalized automatically. Zero disables a component.\nWeights affect which province candidate is selected. Terrain stays unchanged.',
-              wraplength=700).grid(row=rows['Score weights'], column=0, columnspan=3, sticky='w', pady=20)
-    row = 3
-    destination = tk.StringVar(value=str(Path(__file__).parent / 'output'))
-    ttk.Label(frame, text='Output folder').grid(row=row, column=0, sticky='w', pady=12)
-    ttk.Entry(frame, textvariable=destination).grid(row=row, column=1, columnspan=2, sticky='ew', padx=12)
-    messages = queue.Queue()
-    status = tk.StringVar(value='Ready. Existing generated files in the output folder will be replaced.')
-    controls = ttk.Frame(frame)
-    controls.grid(row=row + 1, column=0, columnspan=3, sticky='w', pady=12)
-
-    def read_config():
-        return Config(**{f.name: (variables[f.name].get() == 'True' if f.name == 'wrap_x' else
-                                 type(getattr(defaults, f.name))(variables[f.name].get())) for f in fields(defaults)})
-
-    target_label = tk.StringVar()
-    ttk.Label(panels['Map'], textvariable=target_label, wraplength=720).grid(
-        row=rows['Map'], column=0, columnspan=3, sticky='w', pady=12)
-
-    def refresh_targets(*_):
-        try:
-            config = read_config()
-            config.validate()
-            target = targets_for(config)
-            target_label.set(f"Target: {target['province_count']} provinces; "
-                             f"{target['inland_target']:.1%} of land provinces inland; "
-                             f"{target['mean_degree_target']:.2f} mean neighbors. Soft generation targets.")
-        except (ValueError, TypeError):
-            target_label.set('Enter valid parameters to calculate targets.')
-
-    for variable in variables.values():
-        variable.trace_add('write', refresh_targets)
-    refresh_targets()
-
-    def load_config():
-        path = filedialog.askopenfilename(filetypes=[('JSON parameters', '*.json')])
-        if path:
-            try:
-                config = Config(**json.loads(Path(path).read_text(encoding='utf-8')))
-                config.validate()
-                for key, value in asdict(config).items():
-                    variables[key].set(str(value))
-            except (OSError, ValueError, TypeError) as error:
-                messagebox.showerror('Invalid parameters', str(error))
-
-    def run():
-        try:
-            config = read_config()
-            config.validate()
-        except (ValueError, TypeError) as error:
-            messagebox.showerror('Invalid parameters', str(error))
-            return
-        folder = Path(destination.get()).resolve()
-        generate_button.configure(state='disabled')
-        preview_button.configure(state='disabled')
-
-        def worker():
-            try:
-                report = generate(config, folder, lambda text: messages.put(('status', text)))
-                messages.put(('done', (folder, report)))
-            except Exception as error:
-                messages.put(('error', str(error)))
-        threading.Thread(target=worker, daemon=True).start()
-
-    def poll():
-        try:
-            while True:
-                kind, payload = messages.get_nowait()
-                if kind == 'status':
-                    status.set(payload)
-                elif kind == 'error':
-                    generate_button.configure(state='normal')
-                    status.set('Generation failed. See the message for the parameter conflict.')
-                    messagebox.showerror('Generation failed', payload)
-                else:
-                    folder, report = payload
-                    generate_button.configure(state='normal')
-                    preview_button.configure(state='normal', command=lambda p=folder: webbrowser.open((p / 'index.html').as_uri()))
-                    status.set(f"Finished in {report['elapsed_seconds']:.1f}s. {report['province_count']} connected provinces. Structural score: {report['scoring']['total']:.1f}/100. Open preview for the breakdown.")
-        except queue.Empty:
-            pass
-        root.after(100, poll)
-
-    generate_button = ttk.Button(controls, text='Generate SVG maps', command=run)
-    generate_button.pack(side='left', padx=(0, 10))
-    ttk.Button(controls, text='Load parameters', command=load_config).pack(side='left', padx=(0, 10))
-    preview_button = ttk.Button(controls, text='Open preview', state='disabled')
-    preview_button.pack(side='left')
-    ttk.Label(frame, textvariable=status, wraplength=780).grid(row=row + 2, column=0, columnspan=3, sticky='w', pady=12)
-    frame.columnconfigure(2, weight=1)
-    poll()
-    root.mainloop()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--no-open', action='store_true')
+    parser.add_argument('--output', type=Path, default=ROOT / 'output' / 'app-runs')
+    args = parser.parse_args()
+    try:
+        server, _ = make_server(args.port, args.output)
+    except OSError as error:
+        parser.exit(2, f'Cannot start the local application: {error}. Try --port 8766.\n')
+    url = f'http://127.0.0.1:{server.server_port}'
+    print(f'Map workshop: {url}\nMaps saved in {args.output.resolve()}\nPress Ctrl+C to stop.', flush=True)
+    if not args.no_open:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
 
 
 if __name__ == '__main__':

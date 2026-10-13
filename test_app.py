@@ -1,0 +1,89 @@
+import json
+from pathlib import Path
+import tempfile
+import threading
+import time
+import unittest
+from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+from app import make_server, parse_config, Workshop
+from generator import Config
+
+
+class AppTests(unittest.TestCase):
+    def test_optional_and_fixed_seeds(self):
+        with patch('app.secrets.randbelow', side_effect=[123, 456]):
+            config = parse_config({'seed': '', 'division_seed': None})
+        self.assertEqual((config.seed, config.division_seed), (123, 456))
+        config = parse_config({'seed': 0, 'division_seed': -10})
+        self.assertEqual((config.seed, config.division_seed), (0, -10))
+        for values in ({'bad': 1}, {'size_ratio': 2}, {'seed': 'word'}, ['not an object']):
+            with self.assertRaises(ValueError):
+                parse_config(values)
+
+    def test_job_failure_releases_busy_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workshop = Workshop(directory)
+            workshop.jobs['test'] = {'id': 'test', 'state': 'running'}
+            workshop.active = 'test'
+            with self.assertRaises(RuntimeError):
+                workshop.start(Config())
+            with patch('app.generate', side_effect=ValueError('Infeasible terrain')):
+                workshop.run('test', Config())
+            self.assertEqual(workshop.job('test')['state'], 'error')
+            self.assertIsNone(workshop.active)
+
+    def test_http_generation_validation_and_artifact_access(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server, workshop = make_server(0, directory)
+            thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+            base = f'http://127.0.0.1:{server.server_port}'
+
+            def get(path):
+                with urlopen(base + path, timeout=15) as response:
+                    return response.read()
+
+            def post(path, data, token=None):
+                request = Request(base + path, data=json.dumps(data).encode(),
+                                  headers={'Content-Type': 'application/json', 'X-Workshop-Token': token or workshop.token})
+                with urlopen(request, timeout=15) as response:
+                    return json.load(response)
+
+            try:
+                self.assertIn(b'Map workshop', get('/'))
+                defaults = json.loads(get('/api/config'))
+                self.assertIsNone(defaults['defaults']['seed'])
+                self.assertEqual(post('/api/targets', {})['province_count'], 99)
+                for path in ('/runs/../../profiles.py', '/profiles.py'):
+                    with self.assertRaises(HTTPError) as error:
+                        get(path)
+                    self.assertEqual(error.exception.code, 404)
+                with self.assertRaises(HTTPError) as error:
+                    post('/api/generate', {}, 'wrong-token')
+                self.assertEqual(error.exception.code, 403)
+                with self.assertRaises(HTTPError) as error:
+                    post('/api/generate', {'connectivity_ratio': 5})
+                self.assertEqual(error.exception.code, 400)
+                values = {'hex_count': 600, 'province_count': 12, 'candidates': 1,
+                          'seed': 42, 'division_seed': 42, 'min_land_component': 12, 'min_water_component': 12}
+                result = post('/api/generate', values)
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    job = json.loads(get('/api/jobs/' + result['id']))
+                    if job['state'] != 'running':
+                        break
+                    time.sleep(.05)
+                self.assertEqual(job['state'], 'complete', job)
+                self.assertEqual(job['province_count'], 12)
+                self.assertIn(b'<svg', get(job['urls']['03_provinces.svg']))
+                self.assertEqual(json.loads(get('/api/latest'))['id'], job['id'])
+                self.assertEqual(json.loads(get(job['urls']['parameters.json']))['seed'], 42)
+                self.assertEqual(len(list(Path(directory).iterdir())), 1)
+            finally:
+                server.shutdown(); server.server_close(); thread.join()
+
+
+if __name__ == '__main__':
+    unittest.main()
