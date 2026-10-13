@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict, fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 from pathlib import Path
 import re
 import secrets
@@ -12,10 +13,20 @@ import webbrowser
 
 from generator import Config, generate
 from profiles import STYLES, targets_for
+from scoring import connectivity_policy
 
 ROOT = Path(__file__).resolve().parent
 ARTIFACTS = {'01_elevation.svg', '02_cleaned.svg', '03_provinces.svg',
              'parameters.json', 'report.json', 'map.json', 'index.html'}
+
+LOCKED_SETTINGS = {f.name: getattr(Config(), f.name) for f in fields(Config)
+                   if f.name.startswith('weight_') or f.name.endswith('_tolerance')
+                   or f.name in ('province_style', 'reference_profile')}
+
+
+def province_limits(players, hex_count):
+    base = targets_for(Config(players=players))['province_count']
+    return base, min(hex_count, math.ceil(base * .5)), min(hex_count, math.floor(base * 1.5))
 
 
 def parse_config(values, random_seeds=True):
@@ -25,19 +36,43 @@ def parse_config(values, random_seeds=True):
     if unknown:
         raise ValueError('Unknown parameters: ' + ', '.join(sorted(unknown)))
     settings = dict(values)
+    settings.update(LOCKED_SETTINGS)
     for name in ('seed', 'division_seed'):
         if settings.get(name) in (None, ''):
             settings[name] = secrets.randbelow(2 ** 31) if random_seeds else 42
     config = Config(**settings)
+    # Migrate old absolute cleanup settings to fractions in the workshop.
+    for kind in ('land', 'water'):
+        absolute = getattr(config, f'min_{kind}_component')
+        if type(absolute) is int and absolute >= 0 and type(config.hex_count) is int and config.hex_count > 0:
+            setattr(config, f'min_{kind}_fraction', min(1., absolute / config.hex_count))
+            setattr(config, f'min_{kind}_component', -1)
+    if config.land_province_fraction == -1:
+        config.land_province_fraction = .75
+    if type(config.players) is int and 1 <= config.players <= 100 and type(config.hex_count) is int and config.hex_count > 0:
+        if type(config.province_count) is not int:
+            raise ValueError('province_count must be an integer')
+        base, minimum, maximum = province_limits(config.players, config.hex_count)
+        if isinstance(config.size_ratio, (int, float)) and not isinstance(config.size_ratio, bool) and .5 <= config.size_ratio <= 1.5:
+            requested = config.province_count or round(base * config.size_ratio)
+            config.province_count = max(minimum, min(maximum, requested))
     config.validate()
     return config
 
 
 def result_summary(folder, job_id):
     report = json.loads((folder / 'report.json').read_text(encoding='utf-8'))
+    if not connectivity_policy(report['provinces'])['legal']:
+        raise ValueError('Historical map contains a one-neighbor province; regenerate it under the current rule.')
     parameters = json.loads((folder / 'parameters.json').read_text(encoding='utf-8'))
+    if report.get('high_oceans', {}).get('one_neighbor_region_ids'):
+        raise ValueError('Map contains a one-neighbor merged region; regenerate it.')
+    if not report.get('impassable', {}).get('legal', True):
+        raise ValueError('Impassable placement invalidates movement connectivity; regenerate it.')
     return {'id': job_id, 'state': 'complete', 'message': 'Map ready', 'progress': 1,
             'parameters': parameters, 'province_count': report['province_count'],
+            'impassable_count': report.get('impassable', {}).get('count', 0),
+            'playable_location_count': report.get('playable_location_count', report['province_count']),
             'categories': report['scoring']['composition']['actual_counts'],
             'scoring': report['scoring'], 'elapsed_seconds': report['elapsed_seconds'],
             'degree': report['degree_statistics']['all'],
@@ -80,7 +115,7 @@ class Workshop:
                         .05 if message.startswith('1/') else .1 if message.startswith('2/') else
                         .95 if message.startswith('5/') else None)
             with self.lock:
-                self.jobs[job_id]['message'] = message
+                self.jobs[job_id]['message'] = message.replace('Province candidate', 'Iteration')
                 if fraction is not None:
                     self.jobs[job_id]['progress'] = fraction
         try:
@@ -89,11 +124,10 @@ class Workshop:
             result = result_summary(folder, job_id)
             with self.lock:
                 self.jobs[job_id] = result
+                self.active = None
         except Exception as error:
             with self.lock:
                 self.jobs[job_id].update(state='error', message=str(error), progress=0)
-        finally:
-            with self.lock:
                 self.active = None
 
     def job(self, job_id):
@@ -130,7 +164,8 @@ def handler_for(workshop):
                 defaults = asdict(Config())
                 defaults.update(seed=None, division_seed=None)
                 return self.json_response({'defaults': defaults, 'presets': STYLES,
-                                           'targets': targets_for(Config()), 'token': workshop.token})
+                                           'targets': targets_for(Config()), 'token': workshop.token,
+                                           'province_bases': {p: province_limits(p, 500000)[0] for p in range(1, 101)}})
             if path == '/api/latest':
                 return self.json_response(workshop.latest())
             if path.startswith('/api/jobs/'):

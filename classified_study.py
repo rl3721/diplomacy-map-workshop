@@ -16,6 +16,8 @@ def sample_configs(seed=20261013):
     # seeds reproduce the earlier terrain-only study's selected examples.
     seeds = random.Random(seed).sample(range(2 ** 31), 10)
     return [(style, group, sample, Config(terrain_style=style, province_style='peninsula',
+                                        hex_count=50000, min_land_component=180, min_water_component=180,
+                                        land_province_fraction=-1,
                                         province_count=99, players=7, size_ratio=1.0,
                                         inland_ratio=1.0, connectivity_ratio=1.0,
                                         seed=terrain_seed, division_seed=42))

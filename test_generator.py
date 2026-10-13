@@ -37,7 +37,7 @@ class GeneratorTests(unittest.TestCase):
 
     def test_end_to_end_reproducibility_and_svg(self):
         config = Config(hex_count=600, province_count=12, min_land_component=12,
-                        min_water_component=12, land_province_fraction=.65)
+                        min_water_component=12, land_province_fraction=.65, seed=0)
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             result = generate(config, first, lambda _: None)
             generate(config, second, lambda _: None)

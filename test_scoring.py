@@ -32,7 +32,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(wasserstein({3: 1, 5: 1}, {3: 100, 5: 100}), 0)
         self.assertEqual(wasserstein({3: 1}, {5: 1}), 2)
 
-    def test_classic_reference_is_consistent_and_scores_perfectly(self):
+    def test_classic_reference_matches_but_receives_two_neighbor_penalty(self):
         reference = classic_reference()
         provinces = copy.deepcopy(reference['provinces'])
         self.assertEqual(len(provinces), 75)
@@ -41,8 +41,9 @@ class ScoringTests(unittest.TestCase):
             for neighbor in province['neighbors']:
                 self.assertIn(province['id'], lookup[neighbor]['neighbors'])
             province.update(hex_count=100, target_hex_count=100)
-        result = score_map(provinces, [1.0] * 75, Config(reference_profile='classic'))
-        self.assertAlmostEqual(result['total'], 100)
+        result = score_map(provinces, [1.0] * 75, Config(reference_profile='classic', land_province_fraction=-1))
+        self.assertAlmostEqual(result['weighted_total'], 100)
+        self.assertAlmostEqual(result['total'], 100 - 20 / 75)
         for part in result['components'].values():
             self.assertAlmostEqual(part['score'], 100)
         from collections import Counter
@@ -88,7 +89,7 @@ class ScoringTests(unittest.TestCase):
                            neighbors=[nb + suffix for nb in province['neighbors']],
                            hex_count=10, target_hex_count=10)
                 doubled.append(row)
-        result = score_map(doubled, [1.0] * 150, Config(reference_profile='classic'))
+        result = score_map(doubled, [1.0] * 150, Config(reference_profile='classic', land_province_fraction=-1))
         self.assertAlmostEqual(result['components']['composition']['score'], 100)
         self.assertAlmostEqual(result['components']['degree']['score'], 100)
         for category, expected in {'inland': 28, 'coastal': 84, 'sea': 38}.items():

@@ -17,6 +17,11 @@ from types import SimpleNamespace
 from scoring import COMPONENTS, score_map
 from profiles import STYLES, targets_for
 from shapes import region_shape
+from sphere import SphereGrid, elevation_values
+from label_placement import projected_labels
+from high_oceans import build_high_oceans
+from slot_placement import slot_positions
+from impassable import apply_impassable
 
 
 @dataclass
@@ -25,22 +30,27 @@ class Config:
     size_ratio: float = 1.0
     inland_ratio: float = 1.0
     connectivity_ratio: float = 1.0
-    terrain_style: str = 'islands'
-    province_style: str = 'peninsula'
+    terrain_style: str = 'peninsula'
+    province_style: str = 'auto'
     reference_profile: str = 'auto'
     division_seed: int = 42
     candidates: int = 12
     wrap_x: bool = False
-    hex_count: int = 50000
+    topology: str = 'auto'
+    hex_count: int = 5000
     aspect_ratio: float = 1.5
     seed: int = 42
     land_fraction: float = -1.0
     landmass_scale: float = -1.0
     roughness: float = -1.0
-    min_land_component: int = 180
-    min_water_component: int = 180
+    min_land_component: int = -1
+    min_water_component: int = -1
+    min_land_fraction: float = .036
+    min_water_fraction: float = .036
     province_count: int = 0
-    land_province_fraction: float = -1.0
+    land_province_fraction: float = .75
+    impassable_enabled: bool = True
+    impassable_ratio: float = .02
     size_variation: float = 0.4
     compactness: float = 0.8
     shape_regularity: float = 0.8
@@ -66,28 +76,37 @@ class Config:
                 raise ValueError(f'{name} must be an integer')
         for field in fields(self):
             value = getattr(self, field.name)
-            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x'):
+            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology', 'impassable_enabled'):
                 continue
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
         if not 1 <= self.hex_count <= 500000:
             raise ValueError('hex_count must be between 1 and 500000')
-        if self.terrain_style not in STYLES or self.province_style not in STYLES or self.reference_profile not in ('auto', 'classic', 'peninsula', 'world'):
+        if self.terrain_style not in STYLES or self.province_style not in ('auto', 'peninsula', 'continental', 'islands') or self.reference_profile not in ('auto', 'classic', 'peninsula', 'world'):
             raise ValueError('Invalid terrain_style, province_style, or reference_profile')
         if type(self.wrap_x) is not bool:
             raise ValueError('wrap_x must be true or false')
+        if type(self.impassable_enabled) is not bool:
+            raise ValueError('impassable_enabled must be true or false')
+        if not 0 <= self.impassable_ratio <= 1:
+            raise ValueError('impassable_ratio must be between 0 and 1')
+        if self.topology not in ('auto', 'flat', 'cylinder', 'sphere'):
+            raise ValueError('topology must be auto, flat, cylinder, or sphere')
+        if self.effective_topology == 'sphere' and self.hex_count < 12:
+            raise ValueError('Sphere topology requires at least 12 cells')
         if not 1 <= self.players <= 100 or not 1 <= self.candidates <= 100:
             raise ValueError('players and candidates must be between 1 and 100')
         for name in ('size_ratio', 'inland_ratio', 'connectivity_ratio'):
-            if not .8 <= getattr(self, name) <= 1.2:
-                raise ValueError(f'{name} must be between 0.8 and 1.2')
+            lower, upper = (.5, 1.5) if name == 'size_ratio' else (.8, 1.2)
+            if not lower <= getattr(self, name) <= upper:
+                raise ValueError(f'{name} must be between {lower} and {upper}')
         if not 0 <= self.province_count <= self.hex_count:
             raise ValueError('province_count must be 0 (automatic) or between 1 and hex_count')
         if targets_for(self)['province_count'] > self.hex_count:
             raise ValueError('Not enough hexes for the player-based province count; increase hex_count or override province_count')
         if not 0.2 <= self.aspect_ratio <= 5:
             raise ValueError('aspect_ratio must be between 0.2 and 5')
-        for name in ('land_fraction', 'land_province_fraction', 'roughness', 'compactness', 'shape_regularity', 'size_flexibility'):
+        for name in ('land_fraction', 'land_province_fraction', 'roughness', 'compactness', 'shape_regularity', 'size_flexibility', 'min_land_fraction', 'min_water_fraction'):
             if name in ('land_fraction', 'land_province_fraction', 'roughness') and getattr(self, name) == -1:
                 continue
             if not 0 <= getattr(self, name) <= 1:
@@ -96,8 +115,8 @@ class Config:
             raise ValueError('landmass_scale must be between 0.01 and 2')
         if not 0 <= self.size_variation <= 2:
             raise ValueError('size_variation must be between 0 and 2')
-        if min(self.min_land_component, self.min_water_component) < 0:
-            raise ValueError('component thresholds must be nonnegative')
+        if min(self.min_land_component, self.min_water_component) < -1:
+            raise ValueError('component thresholds must be -1 (relative) or nonnegative')
         if not 0 <= self.repair_passes <= 30:
             raise ValueError('repair_passes must be between 0 and 30')
         weights = [getattr(self, 'weight_' + name) for name in COMPONENTS]
@@ -107,19 +126,32 @@ class Config:
             if field.name.endswith('_tolerance') and getattr(self, field.name) <= 0:
                 raise ValueError(f'{field.name} must be positive')
 
+    @property
+    def effective_topology(self):
+        return ('cylinder' if self.wrap_x else 'flat') if self.topology == 'auto' else self.topology
+
     def resolved(self):
         preset = STYLES[self.terrain_style]
         target = targets_for(self)
-        return replace(self, province_count=target['province_count'],
+        return replace(self, topology=self.effective_topology,
+                       wrap_x=self.effective_topology != 'flat', province_count=target['province_count'],
+                       **self.cleanup_thresholds(),
                        land_province_fraction=target['land_province_fraction'],
                        **{key: preset[key] if getattr(self, key) == -1 else getattr(self, key)
                           for key in ('land_fraction', 'landmass_scale', 'roughness')})
+
+    def cleanup_thresholds(self):
+        return {f'min_{kind}_component': (getattr(self, f'min_{kind}_component')
+                if getattr(self, f'min_{kind}_component') >= 0 else
+                math.ceil(round(self.hex_count * getattr(self, f'min_{kind}_fraction'), 10)))
+                for kind in ('land', 'water')}
 
 
 class Grid:
     def __init__(self, count, aspect, wrap_x=False):
         self.width = max(1, min(count, round(math.sqrt(count * aspect * math.sqrt(3) / 2))))
         self.wrap_x = wrap_x
+        self.topology = 'cylinder' if wrap_x else 'flat'
         if wrap_x:
             divisors = [width for width in range(3, count + 1) if count % width == 0 and count // width >= 2]
             if not divisors:
@@ -180,7 +212,9 @@ def elevation(config, grid):
     span = max(grid.width * math.sqrt(3), math.ceil(grid.count / grid.width) * 1.5)
     values = [0.0] * grid.count
     stretch_x, stretch_y = STYLES[config.terrain_style]['stretch']
-    for octave in range(5):
+    if grid.topology == 'sphere':
+        values = elevation_values(config, grid)
+    for octave in range(0 if grid.topology == 'sphere' else 5):
         scale = span * config.landmass_scale / (2 ** octave)
         amplitude = config.roughness ** octave
         lattice = {}
@@ -216,14 +250,14 @@ def elevation(config, grid):
 
 
 def clean_terrain(terrain, grid, config):
+    thresholds = config.cleanup_thresholds()
     cleaned = terrain.copy()
     flips = 0
     # Flipping one component merges it with all adjacent opposite-type components.
     # Component count strictly decreases, so this cannot oscillate.
     while True:
         groups = components(cleaned, grid)
-        small = [g for g in groups if len(g) < (config.min_land_component if cleaned[g[0]]
-                                                else config.min_water_component)]
+        small = [g for g in groups if len(g) < thresholds['min_land_component' if cleaned[g[0]] else 'min_water_component']]
         if not small or len(groups) == 1:
             break
         group = min(small, key=lambda g: (len(g), g[0]))
@@ -307,7 +341,12 @@ def partition(terrain, grid, config, candidate_index=0):
                     distance = travel + 1 + (1 - config.compactness) * rng.random() * .3
                     # Spatial competition replaces size-deficit scheduling: a trapped region
                     # may remain small instead of chasing its quota through narrow corridors.
-                    perimeter_cost = config.shape_regularity * (6 - 2 * same)
+                    edge_count = len(grid.neighbors[nb]) if grid.topology == 'sphere' else 6
+                    perimeter_cost = config.shape_regularity * (edge_count - 2 * same)
+                    if grid.topology == 'sphere':
+                        perimeter_cost = config.shape_regularity * sum(
+                            length * (-1 if owners[n] == base + pid else 1)
+                            for n, length in grid.edge_lengths[nb].items())
                     priority = (distance + perimeter_cost) / radii[pid]
                     heapq.heappush(frontier, (priority, nb, pid, distance))
 
@@ -329,6 +368,9 @@ def repair_boundaries(owners, terrain, grid, targets, seeds, config, rng):
     """Descending size/shape energy, with a sufficient donor-connectivity test."""
     sizes = Counter(owners)
     perimeter_scales = [2 * math.sqrt(12 * t) for t in targets]
+    spherical = grid.topology == 'sphere'
+    if spherical:
+        perimeter_scales = [max(1., grid.perimeter_bound(t)) for t in targets]
 
     def size_cost(size, target):
         error = max(0, abs(math.log(size / target)) - math.log1p(config.size_flexibility))
@@ -361,11 +403,18 @@ def repair_boundaries(owners, terrain, grid, targets, seeds, config, rng):
             # Coastlines and map edges are largely imposed by terrain. Internal
             # province borders have four times their influence on repair.
             edge_weight = sum(1 if terrain[n] == terrain[cell] else .25 for n in grid.neighbors[cell]) + .25 * (6 - len(grid.neighbors[cell]))
+            same_touch = len(same)
+            if spherical:
+                edge_weight = sum(length * (1 if terrain[n] == terrain[cell] else .25)
+                                  for n, length in grid.edge_lengths[cell].items())
+                same_touch = sum(grid.edge_lengths[cell][n] for n in same)
             for new in choices:
                 before = size_cost(sizes[old], targets[old]) + size_cost(sizes[new], targets[new])
                 after = size_cost(sizes[old] - 1, targets[old]) + size_cost(sizes[new] + 1, targets[new])
                 new_touch = sum(owners[n] == new for n in grid.neighbors[cell])
-                perimeter_delta = ((2 * len(same) - edge_weight) / perimeter_scales[old]
+                if spherical:
+                    new_touch = sum(length for n, length in grid.edge_lengths[cell].items() if owners[n] == new)
+                perimeter_delta = ((2 * same_touch - edge_weight) / perimeter_scales[old]
                                    + (edge_weight - 2 * new_touch) / perimeter_scales[new])
                 # Discourage remote appendages as well as jagged borders.
                 radius_delta = (grid.distance2(cell, seeds[new]) / targets[new] ** 2
@@ -420,13 +469,22 @@ def measure(owners, terrain, grid, targets, config=None):
             raise RuntimeError('Mixed land/water province')
         category = 'sea' if not types[pid] else ('coastal' if any(not types[n] for n in adjacency[pid]) else 'inland')
         degrees[category].append(len(adjacency[pid]))
-        perimeter = sum(6 - sum(owners[nb] == pid for nb in grid.neighbors[c]) for c in cells)
+        perimeter = sum((len(grid.neighbors[c]) if grid.topology == 'sphere' else 6)
+                        - sum(owners[nb] == pid for nb in grid.neighbors[c]) for c in cells)
         compact_perimeter = 2 * math.ceil(math.sqrt(12 * len(cells) - 3))
-        efficiency = min(1.0, compact_perimeter / perimeter)
+        measured_perimeter = perimeter
+        surface = {}
+        if grid.topology == 'sphere':
+            measured_perimeter = sum(length for c in cells for nb, length in grid.edge_lengths[c].items() if owners[nb] != pid)
+            compact_perimeter = grid.perimeter_bound(len(cells))
+            surface = {'surface_area_steradians': len(cells) * grid.area_per_cell,
+                       'surface_perimeter_radians': measured_perimeter / grid.length_scale}
+        efficiency = min(1.0, compact_perimeter / measured_perimeter) if measured_perimeter else 1.0
         efficiencies.append(efficiency)
         provinces.append({'id': pid + 1, 'terrain': 'land' if types[pid] else 'water',
                           'category': category, 'hex_count': len(cells), 'target_hex_count': targets[pid],
                           'perimeter_hex_edges': perimeter, 'perimeter_efficiency': efficiency,
+                          **surface,
                           **region_shape(cells, owners, terrain, grid, pid),
                           'neighbors': sorted(n + 1 for n in adjacency[pid])})
     distances = {}
@@ -444,7 +502,7 @@ def measure(owners, terrain, grid, targets, config=None):
         distances[category] = distance
     scoring = score_map(provinces, efficiencies, config or Config())
     score = statistics.mean(100 * max(0, 1 - d / 2) if d is not None else 0 for d in distances.values())
-    return {'valid': True, 'province_count': len(targets),
+    return {'valid': scoring['valid'], 'structurally_valid': True, 'province_count': len(targets),
             'province_sizes': summary([len(c) for c in cells_by_id]),
             'degree_statistics': {'all': summary([len(a) for a in adjacency]),
                                   **{k: summary(degrees[k]) for k in CLASSIC}},
@@ -454,12 +512,13 @@ def measure(owners, terrain, grid, targets, config=None):
             'provinces': provinces}
 
 
-def outline_paths(grid, labels):
+def outline_polygons(grid, labels):
     edges = defaultdict(dict)
     for i, label in enumerate(labels):
-        vertices = grid.vertices(i)
+        vertices = grid.vertices(i) if grid.topology != 'sphere' else []
         boundary = edges[label]
-        for a, b in zip(vertices, vertices[1:] + vertices[:1]):
+        cell_edges = grid.render_edges[i] if grid.topology == 'sphere' else zip(vertices, vertices[1:] + vertices[:1])
+        for a, b in cell_edges:
             if (b, a) in boundary:
                 del boundary[b, a]
             else:
@@ -483,36 +542,106 @@ def outline_paths(grid, labels):
                 if current == start:
                     break
                 points.append(current)
-            paths.append('M' + ' L'.join(f'{x},{y}' for x, y in points) + ' Z')
-        result[label] = ' '.join(paths)
+            paths.append(points)
+        result[label] = paths
     return result
 
 
-def write_svg(path, title, grid, labels, colors, province_labels=None):
-    paths = outline_paths(grid, labels)
+def outline_paths(grid, labels):
+    return {label: ' '.join('M' + ' L'.join(f'{x},{y}' for x, y in ring) + ' Z' for ring in rings)
+            for label, rings in outline_polygons(grid, labels).items()}
+
+
+def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=()):
+    blocked = {pid - 1 for pid in impassable_ids}
+    ocean_ids = set()
+    if high_oceans:
+        ocean_ids = {o['id'] - 1 for o in high_oceans['oceans']}
+        labels = [high_oceans['region_of'][p + 1] - 1 for p in labels]
+    polygons = outline_polygons(grid, labels)
+    paths = {label: ' '.join('M' + ' L'.join(f'{x},{y}' for x, y in ring) + ' Z' for ring in rings)
+             for label, rings in polygons.items()}
     width = (max(x for x, _ in grid.centers) + 3) * math.sqrt(3)
     height = max(y for _, y in grid.centers) + 5
+    spherical = grid.topology == 'sphere'
+    if spherical:
+        width, height = grid.display_width, grid.display_height
+    transform = '' if spherical else ' transform="translate(1.733 2) scale(1.732050808 1)"'
     lines = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.3f} {height}" role="img">',
              f'<title>{html.escape(title)}</title>', '<rect width="100%" height="100%" fill="#edf2f5"/>',
-             '<g transform="translate(1.733 2) scale(1.732050808 1)">']
+             f'<g{transform}>']
     for label, d in sorted(paths.items()):
         stroke = '#233d43' if province_labels is not None else colors[label]
         stroke_width = '.18' if province_labels is not None else '.04'
-        lines.append(f'<path id="region-{label}" d="{d}" fill="{colors[label]}" fill-rule="evenodd" '
+        fill = '#000000' if label in blocked else colors[label]
+        lines.append(f'<path id="region-{label}" d="{d}" fill="{fill}" fill-rule="evenodd" '
                      f'stroke="{stroke}" stroke-width="{stroke_width}" stroke-linejoin="round"/>')
     lines.append('</g>')
-    if province_labels is not None:
+    if province_labels is not None and spherical:
+        for pid, rings in sorted(polygons.items()):
+            if pid in ocean_ids or pid in blocked:
+                continue
+            for x, y, font in projected_labels(rings, str(pid + 1)):
+                lines.append(f'<text x="{x:.6f}" y="{y:.6f}" text-anchor="middle" '
+                             f'dominant-baseline="central" font-family="sans-serif" font-size="{font:.6f}" '
+                             f'fill="#102d35" stroke="white" stroke-width="{min(.6, font * .1):.6f}" '
+                             f'paint-order="stroke">{pid + 1}</text>')
+    elif province_labels is not None:
         visible_groups = components(labels, SimpleNamespace(count=grid.count, neighbors=grid.flat_neighbors))
         for members in visible_groups:
             pid = labels[members[0]]
+            if pid in ocean_ids or pid in blocked:
+                continue
             mx = statistics.mean(grid.centers[i][0] for i in members)
             my = statistics.mean(grid.centers[i][1] for i in members)
             center = min(members, key=lambda i: 3 * (grid.centers[i][0] - mx) ** 2 + (grid.centers[i][1] - my) ** 2)
             x, y = grid.centers[center]
             font = min(10, max(2.5, math.sqrt(len(members)) * .3))
-            lines.append(f'<text x="{(x + 1) * math.sqrt(3):.3f}" y="{y + 2}" text-anchor="middle" '
+            label_x, label_y = (x, y) if spherical else ((x + 1) * math.sqrt(3), y + 2)
+            lines.append(f'<text x="{label_x:.3f}" y="{label_y}" text-anchor="middle" '
                          f'dominant-baseline="central" font-family="sans-serif" font-size="{font:.2f}" '
                          f'fill="#102d35" stroke="white" stroke-width=".6" paint-order="stroke">{pid + 1}</text>')
+    for pid in sorted(blocked):
+        rings = polygons[pid]
+        if not spherical:
+            rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
+        name = f'{pid + 1} Impassable'
+        for x, y, font in projected_labels(rings, name):
+            lines.append(f'<text class="impassable-label" x="{x:.6f}" y="{y:.6f}" '
+                         f'text-anchor="middle" dominant-baseline="central" font-family="sans-serif" '
+                         f'font-size="{font:.6f}" fill="white">{name}</text>')
+    if high_oceans and ocean_ids:
+        placements = {}
+        radius = min(width, height) * .025
+        for ocean in high_oceans['oceans']:
+            rings = polygons[ocean['id'] - 1]
+            if not spherical:
+                rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
+            positions = slot_positions(rings, ocean['capacity'])
+            radius = min(radius, min(p[2] for p in positions) * .85)
+            placements.update(zip(ocean['slots'], positions))
+        for location in high_oceans['locations']:
+            name = location['name']
+            if name not in placements:
+                continue
+            x, y, _ = placements[name]
+            font = radius / (math.hypot(.4 * len(name), .75) + .2)
+            lines.append(f'<g class="high-ocean-slot" data-location="{name}" '
+                         f'id="slot-{name}"><title>{name}: one fleet; neighbors: '
+                         f'{html.escape(", ".join(location["neighbors"]))}</title>'
+                         f'<circle cx="{x:.6f}" cy="{y:.6f}" r="{radius:.6f}" '
+                         f'fill="#e8f5fc" stroke="#164c70" stroke-width="{radius * .07:.6f}"/>'
+                         f'<text x="{x:.6f}" y="{y:.6f}" text-anchor="middle" '
+                         f'dominant-baseline="central" font-family="sans-serif" '
+                         f'font-size="{font:.6f}" fill="#102d35">{name}</text></g>')
+        lines.append('<metadata id="movement-graph">' + html.escape(json.dumps(high_oceans['locations'])) + '</metadata>')
+        # Overlapping full-footprint geometry, as in DiplomacyGM's high seas.
+        lines.append(f'<g id="sea-adjacencies" style="display:none"{transform}>')
+        for location in high_oceans['locations']:
+            if location['terrain'] == 'water':
+                name = location['name']
+                lines.append(f'<path data-location="{name}" d="{paths[location["region_id"] - 1]}"/>')
+        lines.append('</g>')
     lines.append('</svg>')
     path.write_text('\n'.join(lines), encoding='utf-8')
 
@@ -542,7 +671,8 @@ def generate(config, output, progress=print):
     output.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     progress('1/5 Generating elevation and initial terrain')
-    grid = Grid(config.hex_count, config.aspect_ratio, config.wrap_x)
+    grid = (SphereGrid(config.hex_count, config.aspect_ratio) if config.topology == 'sphere'
+            else Grid(config.hex_count, config.aspect_ratio, config.wrap_x))
     heights, initial, sea_level = elevation(config, grid)
     progress('2/5 Cleaning small terrain components')
     cleaned, flips = clean_terrain(initial, grid, config)
@@ -551,21 +681,60 @@ def generate(config, output, progress=print):
         write_terrain_svg(output / name, grid, heights, terrain, sea_level)
     (output / 'parameters.json').write_text(json.dumps(asdict(requested), indent=2), encoding='utf-8')
     # Prevent previous successful output being mistaken for this failed run.
-    for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html'):
+    for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html', 'generation_failure.json'):
         (output / name).unlink(missing_ok=True)
     progress('3/5 Allocating and growing provinces')
     best = None
     candidate_scores = []
+    rejected_candidates = []
     for candidate in range(config.candidates):
         progress(f'3/5 Province candidate {candidate + 1}/{config.candidates}')
         owners, targets = partition(cleaned, grid, config, candidate)
         report = measure(owners, cleaned, grid, targets, config)
+        oceans = build_high_oceans(report['provinces'])
+        report['high_oceans'] = oceans
+        report['impassable'] = apply_impassable(report['provinces'], owners, heights, oceans,
+                                               config.impassable_enabled, config.impassable_ratio)
+        geographic_two = [r['id'] for r in oceans['regions'] if len(r['neighbors']) == 2]
+        geographic_penalty = 20 * len(geographic_two) / len(oceans['regions'])
+        policy = report['scoring']['connectivity_policy']
+        policy['partition_penalty_points'] = policy['penalty_points']
+        policy['geographical_two_neighbor_region_ids'] = geographic_two
+        policy['geographical_penalty_points'] = geographic_penalty
+        policy['passable_geographical_penalty_points'] = report['impassable']['two_neighbor_penalty_points']
+        policy['penalty_points'] = max(policy['penalty_points'], geographic_penalty,
+                                      policy['passable_geographical_penalty_points'])
+        if report['valid']:
+            report['scoring']['total'] = max(0, report['scoring']['weighted_total'] - policy['penalty_points'])
+        if oceans['one_neighbor_region_ids'] or oceans['zero_capacity_region_ids']:
+            report['valid'] = report['scoring']['valid'] = False
+            policy['legal'] = False
+            report['scoring']['total'] = 0
+            report['scoring']['warnings'].append('Merged geographical regions have one neighbor or zero slot capacity.')
         score = report['scoring']['total']
+        if not report['impassable']['legal']:
+            report['valid'] = report['scoring']['valid'] = policy['legal'] = False
+            score = report['scoring']['total'] = 0
+            report['scoring']['warnings'].append('Impassable placement leaves no playable map, disconnects it, or creates a dead end.')
         candidate_scores.append(score)
+        if not report['valid']:
+            rejected_candidates.append({'candidate': candidate,
+                                        'impassable': report['impassable'],
+                                        'one_neighbor_region_ids': oceans['one_neighbor_region_ids'],
+                                        'zero_capacity_region_ids': oceans['zero_capacity_region_ids'],
+                                        'one_neighbor_province_ids': report['scoring']['connectivity_policy']['one_neighbor_province_ids']})
+            continue
         if best is None or score > best[0]:
             best = (score, owners, targets, report, candidate)
+    if best is None:
+        failure = {'valid': False, 'score': 0, 'reason': 'Every iteration contains a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity.',
+                   'candidate_scores': candidate_scores, 'rejected_candidates': rejected_candidates}
+        (output / 'generation_failure.json').write_text(json.dumps(failure, indent=2), encoding='utf-8')
+        raise ValueError(f'No legal province layout in {config.candidates} iterations: every layout has a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity. '
+                         'Try another province seed, more iterations, or different terrain. Terrain intermediates were saved; no province map was exported.')
     _, owners, targets, report, selected = best
     report.update(generation_targets=generation_targets, candidate_scores=candidate_scores,
+                  rejected_candidates=rejected_candidates,
                   selected_candidate=selected, requested_parameters=asdict(requested))
     report.update({'parameters': asdict(config), 'sea_level': sea_level,
                    'initial_land_fraction': sum(initial) / grid.count,
@@ -582,10 +751,23 @@ def generate(config, output, progress=print):
         hue = rng.randrange(75, 145) if province['terrain'] == 'land' else rng.randrange(190, 220)
         lightness = rng.randrange(66, 84)
         palette[province['id'] - 1] = f'hsl({hue},35%,{lightness}%)'
-    write_svg(output / '03_provinces.svg', 'Connected provinces', grid, owners, palette, True)
+    report['geographical_region_count'] = len(report['high_oceans']['regions'])
+    report['playable_location_count'] = len(report['high_oceans']['locations'])
+    report['movement_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['locations']])
+    report['geographical_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['regions']])
+    report['scoring']['scope'] = 'Original province partition; merged geographical dead ends also invalidate the map. Movement graph is exported separately.'
+    write_svg(output / '03_provinces.svg', 'Provinces and named high-ocean slots', grid, owners, palette, True,
+              report['high_oceans'], report['impassable']['province_ids'])
     report['elapsed_seconds'] = time.perf_counter() - started
+    grid_metadata = (grid.metadata() if config.topology == 'sphere' else
+                     {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count,
+                      'wrap_x': grid.wrap_x, 'topology': grid.topology})
+    report['grid'] = grid_metadata if config.topology != 'sphere' else {
+        k: v for k, v in grid_metadata.items() if k not in ('cell_neighbors', 'cell_longitude_latitude_radians')}
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
-    data = {'schema_version': 2, 'grid': {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count, 'wrap_x': grid.wrap_x},
+    data = {'schema_version': 6, 'grid': grid_metadata, 'impassable': report['impassable'],
+            'high_oceans': report['high_oceans'],
+            'region_ids': [report['high_oceans']['region_of'][p + 1] for p in owners],
             'elevations': heights, 'initial_land': initial, 'cleaned_land': cleaned,
             'province_ids': [p + 1 for p in owners], 'provinces': report['provinces']}
     (output / 'map.json').write_text(json.dumps(data, separators=(',', ':')), encoding='utf-8')
@@ -617,12 +799,21 @@ or neck fraction above 20%; these are review heuristics, and terrain can impose 
     score_panel = f'''<section><h2>Structural score: {scoring['total']:.1f} / 100</h2>
 <table><thead><tr><th>Component</th><th>Score / 100</th><th>Weight</th><th>Points</th></tr></thead>
 <tbody>{score_rows}</tbody></table>
+<p>Weighted subtotal {scoring['weighted_total']:.2f}, minus two-neighbor penalty
+{scoring['connectivity_policy']['penalty_points']:.2f}. One-neighbor layouts are illegal and rejected.</p>
+<p>{report['playable_location_count']} playable locations in {report['geographical_region_count']} geographical regions;
+{report['impassable']['count']} impassable land provinces (black; no movement access).
+{len(report['high_oceans']['oceans'])} high oceans. Numbered circles are one-fleet slots: specify the full name in orders.
+Every slot connects to all siblings and all seas bordering its ocean. Empty slots do not absorb bounced moves.</p>
+<p>Profile statistics describe the original partition. The two-neighbor deduction is the larger of the original
+partition and merged-region deductions. Merged geographical dead ends also invalidate a layout.
+The movement graph and its degree statistics are exported separately.</p>
 <p>Variant-profile targets at {len(targets)} provinces: {expected['inland']:.1f} inland,
 {expected['coastal']:.1f} coastal, {expected['sea']:.1f} sea (fractional comparison targets).</p>
 <p>Travel distances are normalized by the square root of each graph's province count.
 This is a two-dimensional scaling heuristic, not a gameplay-balance guarantee.
 Size and shape measure generation quality; other components compare the selected variant profile.</p>
-<p>Terrain: {config.terrain_style}. Players: {config.players}. Horizontal wrap: {config.wrap_x}.
+<p>Terrain: {config.terrain_style}. Players: {config.players}. Topology: {config.topology}.
 Best of {config.candidates} divisions. References: {html.escape(', '.join(generation_targets['members']))}.</p>
 <p>{html.escape(score_warnings)}</p></section>'''
     cards = ''.join(f'<section><h2>{title}</h2><a href="{name}">Open SVG</a><img src="{name}" alt="{title}"></section>'
@@ -653,8 +844,8 @@ def main():
     parser.add_argument('--open', action='store_true', help='Open HTML preview after generation')
     defaults = Config()
     for field in fields(defaults):
-        if field.name == 'wrap_x':
-            parser.add_argument('--wrap-x', action=argparse.BooleanOptionalAction, default=None)
+        if isinstance(getattr(defaults, field.name), bool):
+            parser.add_argument('--' + field.name.replace('_', '-'), action=argparse.BooleanOptionalAction, default=None)
         else:
             parser.add_argument('--' + field.name.replace('_', '-'), type=type(getattr(defaults, field.name)))
     args = parser.parse_args()

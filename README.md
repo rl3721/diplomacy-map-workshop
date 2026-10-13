@@ -1,6 +1,40 @@
 # Random province map generator
 
 Standalone Python 3.10+ application, independent of DiplomacyGM. No pip dependencies.
+
+## High oceans
+
+Connected groups of two or more water provinces that have no land neighbors
+automatically become one visible high ocean. The lowest original province ID
+names the region; its single-fleet locations are `13.1`, `13.2`, etc. The requested
+province count controls the source partition. Slot count is
+`min(source province count, ceil(distinct external neighboring regions / 2), 6)`.
+The final playable location count can therefore be smaller; it is reported separately.
+Zero-capacity high oceans invalidate a candidate.
+Each slot connects to every sibling and every external neighboring location,
+as in DiplomacyGM's Origin of Storms. Orders must name a specific slot; there is
+no automatic vacancy allocation. A single deep-water province stays unchanged.
+
+SVGs remove internal boundaries and show named circles inside the ocean. All slot circles have the same radius within a map. Slots are packed inside
+the merged projected outline with separation and border clearance. One radius
+is chosen for the whole map, reduced uniformly if needed to fit a narrow ocean;
+zoom scales all circles together. Each slot is drawn once, including on wrapped maps. Hidden sea paths duplicate the full ocean footprint for each slot;
+SVG metadata records the explicit movement graph. This is a generator SVG,
+not a complete DiplomacyGM variant package with all required layers/configuration.
+
+`map.json` schema 6 preserves original `province_ids` and `provinces` for
+partition diagnostics. `region_ids` describes merged geography.
+`high_oceans.locations` is the authoritative movement graph, with string names,
+reciprocal neighbors, region IDs and capacity 1. `high_oceans.regions` describes
+geographical connectivity; `high_oceans.oceans` records membership and capacity.
+Movement and geographical degree summaries are exported in `report.json`.
+The profile score still evaluates the original partition. Both original and
+merged geographical dead ends invalidate a candidate; the larger of their
+two-neighbor penalties is deducted, avoiding double charging.
+
+Run `python high_ocean_study.py` for ten Peninsula maps at 5,000 cells,
+99 source provinces and 0.2 land province share, seeds 1001–1010.
+Open `output/high-ocean-study/index.html` for the inspection gallery.
 Generates a hex-based map through elevation, land/water cleanup, and connected province partitioning.
 It does not place supply centers, powers, units, or impassable areas.
 
@@ -32,22 +66,24 @@ The generator replaces its named artifacts in an existing output folder.
 
 ## Player and terrain controls
 
-Default: 7 players, island-like terrain, peninsula province targets, three multipliers at 1.0, and 12 candidate divisions.
+Default: 7 players, Peninsula terrain, 5,000 cells, automatic regional province targets,
+land province share 0.75, and 12 iterations. The workshop initially targets 99 provinces.
 `players` sets a map-size baseline only; powers and supply centers are not assigned.
 
 | Control | Meaning |
 |---|---|
 | `players` | 1 to 100; province count = round(players * baseline density * size_ratio) |
-| `size_ratio` | 0.8 to 1.2; default density is 14.1 provinces per player |
+| `size_ratio` | 0.5 to 1.5; workshop displays an exact province-count slider and number box instead |
 | `inland_ratio` | 0.8 to 1.2; multiplies the province-profile inland provinces / land provinces target |
 | `connectivity_ratio` | 0.8 to 1.2; multiplies the support of each reference degree distribution |
-| `terrain_style` | islands (default), peninsula, continental; elevation only |
-| `province_style` | peninsula (default), continental, islands; province-composition targets only |
+| `terrain_style` | peninsula (default), continental, islands, custom; elevation only |
+| `province_style` | auto (default, resolves to peninsula); fixed in the workshop |
 | `seed` | Terrain seed; coastline stays fixed when division controls change |
 | `division_seed` | Independent province-placement seed |
-| `candidates` | Best weighted score from 1 to 100 connected divisions; default 12 |
-| `reference_profile` | auto/peninsula, classic, world |
+| `candidates` | Iterations: best weighted score from 1 to 100 connected divisions; default 12 |
+| `reference_profile` | auto (fixed in the workshop); CLI retains research overrides |
 | `wrap_x` | Left/right adjacency and periodic terrain; default false |
+| `topology` | `flat`, `cylinder`, `sphere`, or `auto` (default, reads legacy `wrap_x`) |
 
 `land_fraction`, `landmass_scale`, `roughness`, and `land_province_fraction` use -1 for automatic defaults.
 Positive `province_count` overrides the players/size formula. Reports retain requested and resolved parameters.
@@ -56,7 +92,8 @@ Changing weights can select a different candidate; it does not alter terrain. Se
 The peninsula baseline uses **Classic (7 players, 75 provinces), Ancient Mediterranean (5, 79),
 and Modern II (10, 141)**. Their median provinces/player is 14.1, giving 99 provinces at seven players.
 Category fractions and conditional degree distributions give each reference map equal weight.
-The baseline inland share is approximately 26.6% of land provinces; approximately 24.7% of all provinces are sea.
+The reference inland share is approximately 26.6% of land provinces. The workshop's explicit
+land province share is 0.75, overriding the reference's approximately 75.3% land share.
 Province seeds are spread along coasts and inland according to that target, followed by connected growth.
 Each candidate is scored against the adjusted targets; the highest total wins. These are soft goals, not guarantees.
 
@@ -81,6 +118,42 @@ python generator.py --terrain-style islands --wrap-x --output output/islands
 Wrap grids choose a divisor of hex_count near the requested aspect ratio so every row is complete.
 An incompatible count produces an explanatory error. SVG edges are the cut in a cylinder, not impassable borders.
 
+## Spherical maps
+
+In Map workshop, select **Terrain → Map topology → Sphere**. All three preview stages
+remain rectangular. From the command line:
+
+```powershell
+python generator.py --topology sphere --output output/sphere-default
+```
+
+Sphere uses an equal-area latitude-ring mesh with fewer cells near the poles. The exact
+requested `hex_count` is preserved (minimum 12), including prime counts; on this topology
+the cells are spherical trapezoids and polar triangles, not regular hexagons. Shared
+boundaries determine movement. The poles are closed, north does not wrap to south, and
+merely touching a pole does not make all polar cells neighbors. Elevation is sampled in
+3D on the sphere, so it has no longitude seam or polar discontinuity. Terrain cleanup and
+province growth use this same spherical graph.
+
+The rectangular SVG is an equirectangular display: polar areas are visibly stretched.
+Left/right edges are a display cut; use exported adjacency to determine movement.
+Province numbers use interior positions in the projected outlines, avoiding borders and
+holes. Each visible piece of a seam-crossing province repeats its number, with text sized
+to fit the available space. Label positioning does not change province geometry or adjacency.
+`aspect_ratio` changes only the sphere's display, not terrain or province generation.
+Province count, area distribution, and composition targets remain the same. Surface area
+is proportional to cell count. Compactness uses surface boundary lengths and a spherical
+isoperimetric bound; rectangular image widths/perimeters are not used for scoring.
+World-variant travel references remain a provisional heuristic, not a fitted spherical
+baseline. Terrain preset names preserve their scale/roughness ordering, but the earlier
+flat-map classifications have not been recalibrated for the sphere.
+
+`map.json` schema 3 includes explicit spherical cell neighbors, longitude/latitude centers
+in radians, latitude bounds and row counts for reconstruction. Province records include
+surface area in steradians and perimeter in radians on a unit sphere. Legacy fields
+containing `hex` mean cell counts or shared graph-edge counts for spherical maps.
+Explicit `topology` overrides `wrap_x`; old parameter files without it retain their behavior.
+
 ## Outputs
 
 | File | Contents |
@@ -102,18 +175,19 @@ classification, not the stored height. Reclassified cells use their new terrain'
 
 | Parameter | Meaning |
 |---|---|
-| `hex_count` | Exact grid cell count (default 50,000, maximum 500,000) |
+| `hex_count` | Exact grid cell count (default 5,000, maximum 500,000) |
 | `aspect_ratio` | Approximate physical width/height; final row may be partial |
 | `seed` | Reproducibility within this generator version |
 | `land_fraction` | Initial land hex fraction, rounded to a whole hex |
 | `landmass_scale` | Noise wavelength relative to map span; higher gives broader features |
 | `roughness` | Relative amplitude of each additional noise octave |
-| `min_land_component` | Flip connected islands smaller than this area to water |
-| `min_water_component` | Flip connected water bodies smaller than this area to land |
+| `min_land_fraction` | Minimum connected land area as a fraction of the whole map; default 0.036 |
+| `min_water_fraction` | Minimum connected water area as a fraction of the whole map; default 0.036 |
+| `min_land_component` / `min_water_component` | Legacy absolute overrides; -1 (default) uses the relative fractions |
 | `province_count` | 0 derives count from players; positive values override the exact count |
 | `land_province_fraction` | Requested share of provinces on land, rounded; all-land/water maps override this |
 | `size_variation` | Lognormal sigma, 0 gives approximately equal target areas within a component |
-| `compactness` | 0 = random frontier preference; 1 = preference for proximity to seed |
+| `compactness` | Higher values reduce the small random variation in growth costs |
 | `shape_regularity` | 0 to 1; boundary-length and remote-extension penalty (default 0.8) |
 | `size_flexibility` | 0 to 1; repair allows target/factor to target * factor, factor = 1 + flexibility (default 0.3) |
 | `repair_passes` | Shape/size improvement passes after connected growth (default 12) |
@@ -141,13 +215,32 @@ classification, not the stored height. Reclassified cells use their new terrain'
 
 Size targets are soft. Enclosed or trapped provinces may remain far from their target; report.json exposes
 actual sizes and mean absolute log error. Compactness primarily affects growth, and repairs prioritize size.
-This version scores each generated map but does not automatically search candidates or optimize boundaries
-against the weighted score. It does not promise gameplay balance.
+The highest-scoring iteration is selected; boundary repair itself uses size and shape costs.
+The structural score does not establish gameplay balance.
 
 ## Weighted, size-adaptive scoring
 
-The browser UI exposes weights and tolerances under **Provinces > Advanced provinces > Scoring**; the legacy desktop form retains its scoring tabs. JSON and CLI expose the same fields.
-Existing parameter files remain compatible. Higher tolerance is more forgiving; higher weight gives a
+Scoring version 4 adds a fixed connectivity policy, applied after the weighted subtotal:
+
+- Any province with exactly **one distinct neighbor** makes the layout illegal and forces
+  its final score to zero. Count neighbors across all terrain types, including wrap/polar
+  connections; repeated visible seam pieces do not count as extra neighbors.
+- Exactly **two neighbors** is legal, with a deduction of `20 * (two-neighbor provinces / total provinces)`
+  points, floored at final score zero. For example, 10% two-neighbor provinces costs 2 points.
+  This fixed rule applies regardless of scoring weights and scales with province count.
+- Illegal iterations are never selected, even if all scores tie at zero. If every iteration
+  is illegal, generation fails with an explanatory message, retains terrain intermediates and
+  writes `generation_failure.json`; it does not export a final province SVG or map data.
+- Successful reports include the weighted subtotal, penalty, affected IDs and rejected iteration
+  diagnostics. Structural validity (coverage/connectivity/terrain consistency) is reported separately
+  from legality. The special one-province diagnostic case has degree zero, so the degree-one rule
+  does not apply to it. Historical maps with degree-one provinces are not restored by the workshop.
+
+High-seas merging and named slots are implemented; see High oceans above.
+
+The workshop fixes scoring weights and tolerances internally. They are not editable controls;
+the server also restores these fixed values when settings are imported or posted to the API.
+CLI/research tools retain the fields for development. Higher tolerance is more forgiving; higher weight gives a
 component more influence. Zero weight disables its contribution. At least one weight must be positive.
 
 | Component | Default weight | Comparison |
@@ -319,13 +412,20 @@ cleared for the user-requested regeneration. Generated files remain git-ignored.
 
 ## Map workshop interface
 
-- **Terrain:** named preset buttons, land-coverage/feature-scale/elevation-detail sliders, wrap checkbox,
-  optional terrain seed, and advanced resolution, aspect ratio, and cleanup controls. Preset selection
-  resets its three terrain sliders and does not change province targets.
-- **Provinces:** players, size/inland/connectivity ratios, shape regularity, size flexibility, optional
-  exact-count checkbox, optional province seed, and advanced distribution, candidate, repair, target,
-  and scoring controls. The derived target summary updates as you adjust settings.
-- **Preview:** elevation, cleaned terrain, and province tabs; zoom and fit; scroll to pan a zoomed map;
+- **Terrain:** Continental / Peninsula / Islands / Custom buttons, always-visible land coverage,
+  feature scale and elevation detail sliders, and topology. Dragging any terrain slider selects Custom
+  and preserves the other two values. A named preset resets all three. Advanced contains resolution,
+  aspect ratio, relative cleanup percentages and the optional terrain seed.
+- **Provinces:** Number of players, Province count, Land province share, Landlocked rate and
+  Connectivity are always visible. Province count is an integer slider plus number box, from 0.5 to
+  1.5 times the rounded player-based baseline (rounded inward to whole counts). Seven players gives
+  base 99 and range 50–148. Manual entries clamp on blur/Enter. Changing players preserves the
+  multiplier. Advanced contains shape regularity, size flexibility, Iterations, size variation,
+  compactness, repair passes and the optional province seed. Profile/reference selectors and scoring
+  controls have been removed; the workshop always uses auto profiles and fixed scoring.
+- **Help:** hover or keyboard-focus the underlined parameter labels for detailed notes. Escape
+  dismisses a note; notes also work when labels receive focus on touch devices.
+- **Preview:** Terrain (cleaned elevation) and Provinces tabs; zoom and fit; scroll to pan a zoomed map;
   download the displayed SVG; open Details for scores, shape-review flags, statistics, exact parameters,
   and full map data. The previous map stays visible if a subsequent generation fails.
 - **Supply centers and Powers:** separate reserved panels, visibly marked Coming later. No SC/power
@@ -338,6 +438,25 @@ Save settings downloads the current controls; blanks remain random. Download Exa
 Details to save a generated map's actual seeds. Load settings accepts either JSON format and validates
 it before replacing controls. Refresh restores the latest successful map and its exact parameters.
 
+Cleanup defaults to **3.6% per terrain type**, equivalent to 180 cells at resolution 5,000,
+1,800 at 50,000, or 18 at 500. Effective thresholds round up to whole cells. Percentages remain
+constant when resolution changes. This preserves the physical cleanup scale, not identical coastlines:
+sampling and grid shape still vary with resolution. Imported absolute thresholds are converted to
+percentages at their saved resolution. Raw elevation SVG remains an intermediate output for diagnostics,
+but is not a workshop preview tab. Imported scoring/profile overrides are reset to internal defaults;
+province counts are clamped to the current player-based range.
+
+The automatic **variant reference** supplies measured baselines from Classic (75 provinces / 7 players),
+Ancient Mediterranean (79 / 5), and Modern II (141 / 10). The median province density is 14.1 per player.
+Each map contributes equally to the average landlocked fraction and category-specific neighbor
+distributions. The automatic **target profile** resolves to the unmodified Peninsula composition
+profile, independently of terrain preset or Custom selection. Land province share overrides the
+reference land/sea proportion; Landlocked rate multiplies the reference landlocked share among land
+provinces; Connectivity scales the reference degree distributions. At 99 provinces and 0.75 land share,
+allocation is 74 land / 25 sea, with roughly 20 of the land provinces desired landlocked. Landlocked
+and connectivity targets are soft preferences. Horizontal wrap and Sphere use Imperial II / World War IV
+only for global travel comparisons; they do not change the province-count baseline or composition.
+
 New maps are saved in unique folders under `output/app-runs/`. The existing 30-map gallery remains
 untouched. Set `--output <folder>` to choose a different run directory. One generation runs at a time,
 with progress reported in the status bar; controls are disabled during generation. Closing the terminal
@@ -347,3 +466,32 @@ The UI uses native HTML/CSS/JavaScript and Python's standard-library HTTP server
 project's dependency-free runtime. Desktop uses a settings sidebar and map workspace; small screens
 stack the preview above the settings. The code-native interface follows the visual concept in
 `ui/design/concept.png`; actual maps remain generated SVGs rather than mockup artwork.
+
+
+## Impassable highlands
+
+Advanced provinces provides an **Impassable highlands** checkbox (on by default)
+and **Impassable land share** slider (default 2%, one per 50 land provinces).
+The count is `floor(land province count * impassable_ratio)`: 74 land provinces
+produce one black zone, 100 produce two, and fewer than 50 produce none.
+Turn the checkbox off or set the ratio to zero to disable placement.
+
+Land provinces are ranked by mean elevation across their cells; ties use the
+province ID. Selected provinces are filled black and labelled `ID Impassable`
+in the province SVG. Terrain previews retain the elevation shading.
+`map.json` records each province's `mean_elevation` and `impassable` flag, with
+selection details in `impassable`. Physical adjacency remains available for
+geographical diagnostics. The authoritative `high_oceans.locations` movement
+graph omits impassable locations and every edge to them, even on maps without
+high oceans. Region records also expose `traversable_neighbors`.
+
+The original province budget includes black zones. Playable location count is
+reported separately. Candidate layouts are rejected if the impassable selection
+creates dead ends, disconnects the playable geographical graph, or leaves no
+playable region. The greatest two-neighbor penalty across the source, merged,
+and passable geographical graphs is applied once. A high ratio can leave no
+legal candidate; lower the ratio or change the generation parameters.
+
+CLI examples: `--no-impassable-enabled` disables placement;
+`--impassable-ratio 0.04` uses four percent. JSON uses `impassable_enabled`
+and `impassable_ratio`.

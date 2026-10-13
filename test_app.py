@@ -13,6 +13,23 @@ from generator import Config
 
 
 class AppTests(unittest.TestCase):
+    def test_workshop_defaults_locked_settings_and_count_limits(self):
+        c = parse_config({})
+        self.assertEqual((c.terrain_style, c.hex_count, c.land_province_fraction), ('peninsula', 5000, .75))
+        self.assertEqual(c.cleanup_thresholds(), {'min_land_component': 180, 'min_water_component': 180})
+        locked = parse_config({'province_style': 'islands', 'reference_profile': 'world',
+                               'weight_degree': 999, 'shape_tolerance': 99})
+        self.assertEqual((locked.province_style, locked.reference_profile), ('auto', 'auto'))
+        self.assertEqual((locked.weight_degree, locked.shape_tolerance), (40., .6))
+        self.assertEqual(parse_config({'province_count': 9999}).province_count, 148)
+        self.assertEqual(parse_config({'province_count': 1}).province_count, 50)
+        self.assertEqual(parse_config({'size_ratio': .5}).province_count, 50)
+        self.assertEqual(parse_config({'size_ratio': 1.5}).province_count, 148)
+        self.assertEqual(parse_config({'hex_count': 50000}).cleanup_thresholds()['min_land_component'], 1800)
+        old = parse_config({'hex_count': 50000, 'min_land_component': 180})
+        self.assertAlmostEqual(old.min_land_fraction, .0036)
+        self.assertEqual(old.min_land_component, -1)
+
     def test_optional_and_fixed_seeds(self):
         with patch('app.secrets.randbelow', side_effect=[123, 456]):
             config = parse_config({'seed': '', 'division_seed': None})
@@ -66,8 +83,8 @@ class AppTests(unittest.TestCase):
                 with self.assertRaises(HTTPError) as error:
                     post('/api/generate', {'connectivity_ratio': 5})
                 self.assertEqual(error.exception.code, 400)
-                values = {'hex_count': 600, 'province_count': 12, 'candidates': 1,
-                          'seed': 42, 'division_seed': 42, 'min_land_component': 12, 'min_water_component': 12}
+                values = {'hex_count': 600, 'players': 1, 'province_count': 12, 'candidates': 1,
+                          'seed': 0, 'division_seed': 42, 'land_province_fraction': .65, 'min_land_component': 12, 'min_water_component': 12}
                 result = post('/api/generate', values)
                 deadline = time.monotonic() + 15
                 while time.monotonic() < deadline:
@@ -79,7 +96,7 @@ class AppTests(unittest.TestCase):
                 self.assertEqual(job['province_count'], 12)
                 self.assertIn(b'<svg', get(job['urls']['03_provinces.svg']))
                 self.assertEqual(json.loads(get('/api/latest'))['id'], job['id'])
-                self.assertEqual(json.loads(get(job['urls']['parameters.json']))['seed'], 42)
+                self.assertEqual(json.loads(get(job['urls']['parameters.json']))['seed'], 0)
                 self.assertEqual(len(list(Path(directory).iterdir())), 1)
             finally:
                 server.shutdown(); server.server_close(); thread.join()

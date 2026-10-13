@@ -10,6 +10,19 @@ from shapes import shape_error as province_shape_error
 
 
 COMPONENTS = ('degree', 'composition', 'global', 'size', 'shape')
+TWO_NEIGHBOR_PENALTY = 20.0
+
+
+def connectivity_policy(provinces):
+    """Count unique physical neighbors across all terrain types and wrap seams."""
+    degrees = {p['id']: len(set(p['neighbors']) - {p['id']}) for p in provinces}
+    illegal = [pid for pid, degree in degrees.items() if degree == 1]
+    two = [pid for pid, degree in degrees.items() if degree == 2]
+    fraction = len(two) / len(provinces) if provinces else 0.
+    return {'legal': not illegal, 'one_neighbor_province_ids': illegal,
+            'two_neighbor_province_ids': two, 'two_neighbor_fraction': fraction,
+            'penalty_points': TWO_NEIGHBOR_PENALTY * fraction,
+            'rule': 'Any one-neighbor province invalidates the map. Otherwise deduct 20 times the fraction of two-neighbor provinces.'}
 
 
 def similarity(distance, tolerance):
@@ -206,7 +219,7 @@ def score_map(provinces, shape_efficiencies, config):
               'shape': similarity(shape_error, config.shape_tolerance)}
     combined = combine_scores(scores, {k: getattr(config, 'weight_' + k) for k in COMPONENTS})
     combined.update({
-        'version': 3, 'reference_source': target['sources'], 'targets': target,
+        'version': 4, 'reference_source': target['sources'], 'targets': target,
         'warnings': ['Small province counts give coarse proportions and unstable distributions.'] if n < 30 else [],
         'scaling': 'Category proportions; conditional degree distributions; path hops / sqrt(graph node count); '
                    'component area fractions; bottleneck rates; relative size errors; perimeter efficiency.',
@@ -230,6 +243,17 @@ def score_map(provinces, shape_efficiencies, config):
     })
     if any(not value['metrics']['paths_exact'] for value in graphs.values()):
         combined['warnings'].append('Travel distributions estimated from 128 deterministic source provinces per graph.')
+    if config.effective_topology == 'sphere':
+        combined['warnings'].append('Sphere: shape uses surface perimeter and equal-area cells. World-variant travel targets are provisional; they are not calibrated against spherical variants.')
     if n >= 3 and target['mean_degree_target'] > 6 - 12 / n:
         combined['warnings'].append('Requested mean degree exceeds the planar adjacency bound for this province count; connectivity is a soft preference and cannot be matched exactly.')
+    policy = connectivity_policy(provinces)
+    combined['connectivity_policy'] = policy
+    combined['valid'] = policy['legal']
+    combined['weighted_total'] = combined['total']
+    combined['total'] = max(0., combined['total'] - policy['penalty_points']) if policy['legal'] else 0.
+    if not policy['legal']:
+        combined['warnings'].append('Illegal layout: one-neighbor provinces ' + ', '.join(map(str, policy['one_neighbor_province_ids'])) + '. Overall score forced to zero.')
+    elif policy['two_neighbor_province_ids']:
+        combined['warnings'].append(f"Two-neighbor penalty: {policy['penalty_points']:.2f} points deducted for {len(policy['two_neighbor_province_ids'])} provinces ({policy['two_neighbor_fraction']:.1%} of the map).")
     return combined

@@ -50,16 +50,27 @@ def region_shape(cells, owners, terrain, grid, pid):
 
     internal = sum(sum(owners[nb] != pid and terrain[nb] == terrain[cell]
                        for nb in grid.neighbors[cell]) for cell in cells)
-    perimeter = sum(6 - len(graph[cell]) for cell in cells)
+    perimeter = sum((len(grid.neighbors[cell]) if grid.topology == 'sphere' else 6) - len(graph[cell]) for cell in cells)
     imposed = perimeter - internal
     weighted = internal + .25 * imposed
     bound = 2 * math.ceil(math.sqrt(12 * n - 3))
+    surface = {}
+    if grid.topology == 'sphere':
+        surface_internal = sum(length for cell in cells for nb, length in grid.edge_lengths[cell].items()
+                       if owners[nb] != pid and terrain[nb] == terrain[cell])
+        surface_imposed = sum(length for cell in cells for nb, length in grid.edge_lengths[cell].items()
+                      if owners[nb] != pid and terrain[nb] != terrain[cell])
+        weighted = surface_internal + .25 * surface_imposed
+        bound = grid.perimeter_bound(n)
+        surface = {'internal_surface_border_radians': surface_internal / grid.length_scale,
+                   'terrain_surface_border_radians': surface_imposed / grid.length_scale}
     thin = sum(len(graph[cell]) <= 2 and
                sum(terrain[nb] == terrain[cell] for nb in grid.neighbors[cell]) >= 4
                for cell in cells)
     return {'internal_border_hex_edges': internal,
+            **surface,
             'terrain_border_hex_edges': imposed,
-            'terrain_adjusted_perimeter_efficiency': min(1.0, bound / weighted),
+            'terrain_adjusted_perimeter_efficiency': min(1.0, bound / weighted) if weighted else 1.0,
             'internal_diameter_lower_bound': diameter,
             'normalized_internal_diameter': diameter / math.sqrt(n),
             'avoidable_thin_hex_fraction': thin / n,

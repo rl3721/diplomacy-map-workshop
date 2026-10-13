@@ -14,7 +14,7 @@ from profiles import targets_for
 
 HELP = {
     'players': 'Base province count follows players (no powers assigned yet)',
-    'size_ratio': '0.8 to 1.2 times the variant provinces-per-player baseline',
+    'size_ratio': '0.5 to 1.5 times the variant provinces-per-player baseline',
     'inland_ratio': '0.8 to 1.2 times the province-style inland share',
     'connectivity_ratio': '0.8 to 1.2 times reference neighbor counts; a soft target',
     'terrain_style': 'Elevation preset only; does not change province targets',
@@ -23,6 +23,7 @@ HELP = {
     'division_seed': 'Change province boundaries while preserving terrain',
     'candidates': 'Keep the highest weighted score from 1 to 100 divisions',
     'wrap_x': 'Connect left and right edges; complete hex rows required',
+    'topology': 'auto uses wrap_x; sphere closes both poles with a rectangular preview',
     'hex_count': 'Drawing resolution: 1–500,000',
     'aspect_ratio': 'Map width / height: 0.2–5',
     'seed': 'Integer; same parameters reproduce the same map',
@@ -31,6 +32,8 @@ HELP = {
     'roughness': '-1 = preset; elevation detail: 0–1',
     'min_land_component': 'Remove islands smaller than this many hexes',
     'min_water_component': 'Fill water bodies smaller than this many hexes',
+    'min_land_fraction': 'Relative land cleanup area; 0.036 means 180 cells per 5000',
+    'min_water_fraction': 'Relative water cleanup area; used when absolute threshold is -1',
     'province_count': '0 = player-based count; positive = exact override',
     'land_province_fraction': '-1 = variant baseline; land province fraction: 0–1',
     'size_variation': 'Lognormal spread: 0 = equal targets, up to 2',
@@ -81,14 +84,14 @@ def main():
         variable = tk.StringVar(value=str(getattr(defaults, field.name)))
         variables[field.name] = variable
         ttk.Label(panel, text=field.name.replace('_', ' ').capitalize()).grid(row=row, column=0, sticky='w', pady=5)
-        if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x'):
-            values = {'terrain_style': ('peninsula', 'continental', 'islands'),
-                      'province_style': ('peninsula', 'continental', 'islands'),
+        if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology'):
+            values = {'terrain_style': ('peninsula', 'continental', 'islands', 'custom'),
+                      'province_style': ('auto', 'peninsula', 'continental', 'islands'),
                       'reference_profile': ('auto', 'classic', 'peninsula', 'world'),
-                      'wrap_x': ('False', 'True')}[field.name]
+                      'wrap_x': ('False', 'True'), 'topology': ('auto', 'flat', 'cylinder', 'sphere')}[field.name]
             control = ttk.Combobox(panel, textvariable=variable, values=values, state='readonly', width=16)
         elif field.name in ('size_ratio', 'inland_ratio', 'connectivity_ratio'):
-            control = ttk.Spinbox(panel, textvariable=variable, from_=.8, to=1.2, increment=.05, width=16)
+            control = ttk.Spinbox(panel, textvariable=variable, from_=.5 if field.name == 'size_ratio' else .8, to=1.5 if field.name == 'size_ratio' else 1.2, increment=.05, width=16)
         else:
             control = ttk.Entry(panel, textvariable=variable, width=18)
         control.grid(row=row, column=1, padx=12)

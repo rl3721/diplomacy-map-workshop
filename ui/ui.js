@@ -2,6 +2,32 @@
 const $ = id => document.getElementById(id);
 const state = {defaults: null, presets: null, parameters: {}, token: '', result: null, stage: '03_provinces.svg', zoom: 1, busy: false, targetRequest: 0};
 const controls = new Map();
+const terrainKeys = ['land_fraction', 'landmass_scale', 'roughness'];
+const help = {
+  impassable_enabled: 'Mark the highest land provinces as black impassable areas. Ranking uses average elevation across each province. Impassable areas cannot be entered, occupied, or crossed. Layouts with disconnected playable regions or dead ends are rejected.',
+  impassable_ratio: 'Share of land provinces made impassable, rounded down. Default 2% means one per 50 land provinces: 74 gives one, 100 gives two, fewer than 50 gives none. Zero also disables placement.',
+  land_fraction: 'Fraction of the initial map area assigned to land. Cleanup can slightly change the final percentage. This is different from the number of land provinces.',
+  landmass_scale: 'Size of elevation features. Increase for broader landmasses and seas; decrease for smaller features. Changing this slider selects Custom terrain.',
+  roughness: 'Strength of fine elevation detail. Higher values generally make coastlines more irregular and introduce smaller features. Changing this slider selects Custom terrain.',
+  topology: 'Flat has open edges. Horizontal wrap connects left to right. Sphere closes the globe and shortens routes around the poles. All previews remain rectangular; polar regions look stretched on Sphere.',
+  hex_count: 'Number of starting cells, not provinces. More cells give finer boundaries and take longer. Minimum land and water areas scale automatically with this resolution. Sphere uses equal-area cells rather than regular hexagons.',
+  aspect_ratio: 'Map width divided by height. On flat and wrapped maps this changes the grid shape. On Sphere it changes only the rectangular display, not terrain or province connections.',
+  min_land_fraction: 'Minimum connected land area as a percentage of the entire map. Smaller islands are converted to water. The default 3.6% equals 180 cells at resolution 5,000, or 1,800 at 50,000. This does not constrain province size or peninsula width. Zero disables this cleanup.',
+  min_water_fraction: 'Minimum connected water area as a percentage of the entire map. Smaller lakes or seas are converted to land. The default 3.6% equals 180 cells at resolution 5,000, or 1,800 at 50,000. Zero disables this cleanup.',
+  players: 'Sets the base province count using the automatic regional reference: about 14.1 provinces per player. Changing players preserves your province-count multiplier. Powers and starting positions are not assigned yet.',
+  province_count: 'Exact number of provinces to generate. The slider and number box allow 0.5 to 1.5 times the player-based count, rounded inward to whole provinces and limited by available cells. Numbers outside that range are clamped when entered.',
+  land_province_fraction: 'Fraction of provinces assigned to land, not land area. The default 0.75 requests about three land provinces for each sea province. Counts are rounded; incompatible terrain components can make a requested allocation impossible.',
+  inland_ratio: 'Multiplier for the target share of land provinces with no sea neighbor. At 1.00 the automatic reference targets about 26.6% landlocked land provinces. It affects province seed placement and selection, not terrain. This is a soft target.',
+  connectivity_ratio: 'Multiplier for reference neighbor-count distributions. Higher values favor layouts with more neighbors per province. This selects among iterations; it does not create artificial connections. Any province with exactly one distinct neighbor makes the layout illegal. Two-neighbor provinces are allowed but reduce the final score.',
+  shape_regularity: 'Strength of growth and repair penalties against long extensions and excessive borders. Higher values favor more compact provinces. Natural coastlines can still impose narrow shapes.',
+  size_flexibility: 'How much province size can deviate before repair penalizes it. At 0.30, target size divided by 1.3 through target size multiplied by 1.3 is unpenalized. Higher values give shape improvement more freedom. This is not a hard size limit.',
+  candidates: 'Number of alternative province divisions to try over the same terrain. The fixed internal scoring system keeps the best one. More iterations take longer; they do not generate different terrain.',
+  size_variation: 'Spread of sampled province-size targets. Zero requests similar sizes within each terrain component. Larger values produce a wider mixture of small and large targets. Actual sizes may differ.',
+  compactness: 'Controls small random variations in growth cost. Higher values reduce growth noise. Shape regularity is the stronger control for avoiding long extensions.',
+  repair_passes: 'Maximum rounds of boundary adjustments after growth. Repair balances size and shape while preserving connectivity. It stops early if there are no useful changes. Zero skips repair.',
+  seed: 'Optional terrain seed. Blank generates a new random seed each time. Fix this seed and the terrain settings to keep the terrain while exploring province divisions.',
+  division_seed: 'Optional province seed. Change it to try another division of the same terrain. Fix both seeds and all settings to reproduce a map within this generator version.'
+};
 const formats = {percent: v => `${Math.round(v * 100)}%`, ratio: v => `${Number(v).toFixed(2)}x`, decimal: v => Number(v).toFixed(2), scale: v => Number(v).toFixed(3)};
 
 async function api(path, data) {
@@ -16,6 +42,14 @@ function changed() {
   $('status').textContent = state.result ? 'Settings changed. Generate to update the preview.' : 'Ready to generate';
   refreshTargets();
 }
+function selectCustom() {
+  for (const key of terrainKeys) if (state.parameters[key] === -1) state.parameters[key] = state.presets[state.parameters.terrain_style][key];
+  state.parameters.terrain_style = 'custom';
+  updatePresetButtons();
+}
+function updatePresetButtons() {
+  document.querySelectorAll('[data-preset]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.preset === state.parameters.terrain_style)));
+}
 function rangeField(parent, key, label, min, max, step, format, compact = false) {
   const field = document.createElement('div'); field.className = compact ? 'compact-field' : 'range-field';
   field.innerHTML = `<label for="${key}">${label}</label><div class="range-input"><input id="${key}" type="range" min="${min}" max="${max}" step="${step}"><output for="${key}" id="${key}-value"></output></div>`;
@@ -27,14 +61,14 @@ function rangeField(parent, key, label, min, max, step, format, compact = false)
     input.style.setProperty('--fill', `${100 * (Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min))}%`);
     input.setAttribute('aria-valuetext', output.textContent);
   }
-  input.addEventListener('input', () => { state.parameters[key] = Number(input.value); display(Number(input.value)); changed(); });
+  input.addEventListener('input', () => { if (terrainKeys.includes(key)) selectCustom(); state.parameters[key] = Number(input.value); display(Number(input.value)); changed(); });
   controls.set(key, display);
 }
 function numberField(parent, key, label, min, max, step = 1) {
   const field = document.createElement('div'); field.className = 'compact-field';
   field.innerHTML = `<label for="${key}">${label}</label><input type="number" id="${key}" min="${min}" max="${max}" step="${step}" required>`;
   parent.append(field); const input = $(key);
-  input.addEventListener('input', () => { state.parameters[key] = input.value === '' ? null : Number(input.value); changed(); });
+  input.addEventListener('input', () => { state.parameters[key] = input.value === '' ? null : Number(input.value); if (key === 'players' || key === 'hex_count') syncProvinceCount(); changed(); });
   controls.set(key, value => { input.value = value; });
 }
 function selectField(parent, key, label, values) {
@@ -52,34 +86,86 @@ function buildControls() {
   rangeField($('terrain-sliders'), 'roughness', 'Elevation detail', 0, 1, .01, 'decimal');
   numberField($('terrain-advanced'), 'hex_count', 'Hex resolution', 1, 500000);
   numberField($('terrain-advanced'), 'aspect_ratio', 'Aspect ratio', .2, 5, .1);
-  numberField($('terrain-advanced'), 'min_land_component', 'Minimum land area', 0, 500000);
-  numberField($('terrain-advanced'), 'min_water_component', 'Minimum water area', 0, 500000);
-  numberField($('province-sliders'), 'players', 'Players', 1, 100);
-  rangeField($('province-sliders'), 'size_ratio', 'Map size', .8, 1.2, .01, 'ratio', true);
-  rangeField($('province-sliders'), 'inland_ratio', 'Inland rate', .8, 1.2, .01, 'ratio', true);
+  for (const kind of ['land', 'water']) {
+    const key = `min_${kind}_fraction`;
+    const field = document.createElement('div'); field.className = 'compact-field';
+    field.innerHTML = `<label for="${key}">Minimum ${kind} area (%)</label><input id="${key}" type="number" min="0" max="100" step="any" required>`;
+    $('terrain-advanced').append(field);
+    controls.set(key, value => { $(key).value = Number((value * 100).toFixed(6)); });
+    $(key).addEventListener('input', () => { state.parameters[key] = $(key).value === '' ? null : Number($(key).value) / 100; changed(); });
+  }
+  numberField($('province-sliders'), 'players', 'Number of players', 1, 100);
+  const count = document.createElement('div'); count.className = 'range-field';
+  count.innerHTML = '<label for="province_count">Province count</label><div class="count-input"><input id="province-count-slider" type="range" aria-label="Province count slider" step="1"><input id="province_count" type="number" step="1" required></div><p id="count-range" class="hint"></p>';
+  $('province-sliders').append(count);
+  $('province-count-slider').addEventListener('input', () => { syncProvinceCount(Number($('province-count-slider').value)); changed(); });
+  $('province_count').addEventListener('change', () => { syncProvinceCount(Number($('province_count').value)); changed(); });
+  $('province_count').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); syncProvinceCount(Number($('province_count').value)); changed(); } });
+  numberField($('province-sliders'), 'land_province_fraction', 'Land province share', 0, 1, .01);
+  rangeField($('province-sliders'), 'inland_ratio', 'Landlocked rate', .8, 1.2, .01, 'ratio', true);
   rangeField($('province-sliders'), 'connectivity_ratio', 'Connectivity', .8, 1.2, .01, 'ratio', true);
-  rangeField($('province-sliders'), 'shape_regularity', 'Shape regularity', 0, 1, .01, 'decimal', true);
-  rangeField($('province-sliders'), 'size_flexibility', 'Size flexibility', 0, 1, .01, 'decimal', true);
-  selectField($('province-advanced'), 'province_style', 'Target profile', [['peninsula', 'Peninsula'], ['continental', 'Continental'], ['islands', 'Islands']]);
-  selectField($('province-advanced'), 'reference_profile', 'Variant reference', [['auto', 'Auto'], ['peninsula', 'Regional'], ['classic', 'Classic'], ['world', 'World']]);
-  numberField($('province-advanced'), 'land_province_fraction', 'Land province share', -1, 1, 'any');
-  const note = document.createElement('p'); note.className = 'advanced-note'; note.textContent = 'Land province share: −1 uses the reference target. Terrain presets do not change province targets.'; $('province-advanced').append(note);
-  numberField($('province-advanced'), 'candidates', 'Candidate layouts', 1, 100);
+  rangeField($('province-advanced'), 'shape_regularity', 'Shape regularity', 0, 1, .01, 'decimal', true);
+  rangeField($('province-advanced'), 'size_flexibility', 'Size flexibility', 0, 1, .01, 'decimal', true);
+  numberField($('province-advanced'), 'candidates', 'Iterations', 1, 100);
   numberField($('province-advanced'), 'size_variation', 'Size variation', 0, 2, .05);
   numberField($('province-advanced'), 'compactness', 'Compactness', 0, 1, .05);
   numberField($('province-advanced'), 'repair_passes', 'Repair passes', 0, 30);
-  for (const [name, label] of [['degree', 'Connectivity'], ['composition', 'Composition'], ['global', 'Travel structure'], ['size', 'Province size'], ['shape', 'Province shape']]) numberField($('scoring-fields'), `weight_${name}`, `${label} weight`, 0, 1000, 'any');
-  for (const name of ['degree', 'composition', 'path', 'fragmentation', 'bottleneck', 'size', 'shape']) numberField($('scoring-fields'), `${name}_tolerance`, `${name[0].toUpperCase() + name.slice(1)} tolerance`, .000001, 10000, 'any');
+  const blocked = document.createElement('div'); blocked.className = 'compact-field';
+  blocked.innerHTML = '<label for="impassable_enabled">Impassable highlands</label><input id="impassable_enabled" type="checkbox" style="width:auto;justify-self:start">';
+  $('province-advanced').append(blocked);
+  controls.set('impassable_enabled', value => { $('impassable_enabled').checked = value; });
+  $('impassable_enabled').addEventListener('change', () => { state.parameters.impassable_enabled = $('impassable_enabled').checked; changed(); });
+  rangeField($('province-advanced'), 'impassable_ratio', 'Impassable land share', 0, 1, .01, 'percent');
+  for (const [key, parent] of [['seed', 'terrain-advanced'], ['division_seed', 'province-advanced']]) {
+    $(parent).append(document.querySelector(`label[for="${key}"]`), $(key));
+  }
+  installHelp();
+}
+function syncProvinceCount(explicit) {
+  const p = state.parameters;
+  const base = state.bases[p.players];
+  if (!base || !Number.isInteger(p.hex_count) || p.hex_count < 1) return;
+  const min = Math.min(p.hex_count, Math.ceil(base * .5)), max = Math.min(p.hex_count, Math.floor(base * 1.5));
+  const value = Math.max(min, Math.min(max, Math.round(Number.isFinite(explicit) ? explicit : base * p.size_ratio)));
+  p.province_count = value;
+  if (explicit !== undefined) p.size_ratio = Math.max(.5, Math.min(1.5, value / base));
+  for (const id of ['province_count', 'province-count-slider']) { $(id).min = min; $(id).max = max; $(id).value = value; }
+  $('province-count-slider').style.setProperty('--fill', `${max === min ? 100 : 100 * (value - min) / (max - min)}%`);
+  $('count-range').textContent = `Base ${base} · Range ${min}–${max} provinces`;
+}
+function installHelp() {
+  const tooltip = $('parameter-tooltip');
+  for (const [key, text] of Object.entries(help)) {
+    const label = document.querySelector(`label[for="${key}"]`); if (!label) continue;
+    label.classList.add('has-help'); label.tabIndex = 0;
+    const show = () => {
+      tooltip.textContent = text; tooltip.hidden = false; label.setAttribute('aria-describedby', 'parameter-tooltip');
+      const rect = label.getBoundingClientRect(), box = tooltip.getBoundingClientRect();
+      tooltip.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - box.width - 8))}px`;
+      tooltip.style.top = `${Math.max(8, rect.bottom + box.height + 10 < innerHeight ? rect.bottom + 6 : rect.top - box.height - 6)}px`;
+    };
+    const hide = () => { tooltip.hidden = true; label.removeAttribute('aria-describedby'); };
+    label.addEventListener('mouseenter', show); label.addEventListener('mouseleave', hide);
+    label.addEventListener('focus', show); label.addEventListener('blur', hide);
+    label.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+  }
+  document.addEventListener('scroll', () => { tooltip.hidden = true; }, true);
 }
 function applyParameters(parameters) {
   state.parameters = {...state.defaults, ...parameters};
+  for (const key of Object.keys(state.defaults)) if (key.startsWith('weight_') || key.endsWith('_tolerance') || ['province_style', 'reference_profile'].includes(key)) state.parameters[key] = state.defaults[key];
+  for (const kind of ['land', 'water']) {
+    if (parameters[`min_${kind}_component`] >= 0) state.parameters[`min_${kind}_fraction`] = Math.min(1, parameters[`min_${kind}_component`] / state.parameters.hex_count);
+    state.parameters[`min_${kind}_component`] = -1;
+  }
+  if (state.parameters.land_province_fraction === -1) state.parameters.land_province_fraction = .75;
   const preset = state.presets[state.parameters.terrain_style];
+  if (state.parameters.terrain_style !== 'custom' && terrainKeys.some(key => state.parameters[key] !== -1 && Math.abs(state.parameters[key] - preset[key]) > 1e-9)) selectCustom();
   for (const [key, display] of controls) display(['land_fraction', 'landmass_scale', 'roughness'].includes(key) && state.parameters[key] === -1 ? preset[key] : state.parameters[key]);
-  document.querySelectorAll('[data-preset]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.preset === state.parameters.terrain_style)));
-  $('wrap_x').checked = state.parameters.wrap_x;
-  $('exact-count').checked = state.parameters.province_count > 0;
-  $('province_count').disabled = !$('exact-count').checked;
-  $('province_count').value = state.parameters.province_count || 99;
+  updatePresetButtons();
+  $('topology').value = state.parameters.topology === 'auto' ? (state.parameters.wrap_x ? 'cylinder' : 'flat') : state.parameters.topology;
+  topologyHint();
+  syncProvinceCount(state.parameters.province_count > 0 ? state.parameters.province_count : undefined);
   for (const key of ['seed', 'division_seed']) $(key).value = state.parameters[key] ?? '';
   refreshTargets();
 }
@@ -92,6 +178,9 @@ function parameters() {
   }
   return values;
 }
+function topologyHint() {
+  $('topology-hint').textContent = {flat: 'Rectangular map with open edges.', cylinder: 'Left and right edges connect. North and south stay open.', sphere: 'Closed globe, rectangular preview. Polar areas look stretched; connections and areas are measured on the sphere.'}[$('topology').value];
+}
 let targetTimer;
 function refreshTargets() {
   clearTimeout(targetTimer); const request = ++state.targetRequest;
@@ -99,8 +188,7 @@ function refreshTargets() {
     try {
       const target = await api('/api/targets', parameters());
       if (request !== state.targetRequest) return;
-      $('target-summary').textContent = `Target: ${target.province_count} provinces · ${(target.inland_target * 100).toFixed(1)}% inland · ${target.mean_degree_target.toFixed(2)} neighbors`;
-      if (!$('exact-count').checked) $('province_count').value = target.province_count;
+      $('target-summary').textContent = `Target: ${(target.inland_target * 100).toFixed(1)}% landlocked land provinces · ${target.mean_degree_target.toFixed(2)} neighbors`;
     } catch (error) { if (request === state.targetRequest) $('target-summary').textContent = error.message; }
   }, 160);
 }
@@ -134,7 +222,7 @@ function showResult(result) {
   for (const id of ['fit', 'zoom-out', 'zoom-in', 'details-button']) $(id).disabled = false;
   $('download-svg').classList.remove('disabled'); $('download-svg').setAttribute('aria-disabled', 'false');
   const counts = result.categories;
-  $('map-stats').replaceChildren(...[`${result.province_count} provinces`, `${counts.inland + counts.coastal} land`, `${counts.sea} sea`, `Score ${result.scoring.total.toFixed(1)}`].map(text => { const span = document.createElement('span'); span.textContent = text; return span; }));
+  $('map-stats').replaceChildren(...[`${result.province_count} source provinces`, `${result.playable_location_count ?? result.province_count} playable`, `${result.impassable_count ?? 0} impassable`, `${counts.inland + counts.coastal} land`, `${counts.sea} sea`, `Score ${result.scoring.total.toFixed(1)}`].map(text => { const span = document.createElement('span'); span.textContent = text; return span; }));
   $('seed-status').textContent = `Terrain seed ${result.parameters.seed} · Province seed ${result.parameters.division_seed}`;
   $('status').textContent = `Map ready · ${result.elapsed_seconds.toFixed(1)} seconds`;
   setStage(state.stage);
@@ -180,6 +268,11 @@ function showDetails() {
     table.tBodies[0].append(row);
   }
   container.append(table);
+  if (r.scoring.connectivity_policy) {
+    const policy = r.scoring.connectivity_policy, note = document.createElement('p');
+    note.textContent = `Weighted subtotal ${r.scoring.weighted_total.toFixed(2)} − two-neighbor penalty ${policy.penalty_points.toFixed(2)} = final score ${r.scoring.total.toFixed(2)}. Two-neighbor provinces: ${policy.two_neighbor_province_ids.join(', ') || 'none'}. One-neighbor layouts are illegal and rejected.`;
+    container.append(note);
+  }
   const shape = r.scoring.shape;
   for (const text of [`${r.categories.inland} inland, ${r.categories.coastal} coastal, ${r.categories.sea} sea provinces. Mean neighbors: ${r.degree.mean.toFixed(2)}.`, `Perimeter efficiency: ${shape.mean_perimeter_efficiency.toFixed(2)} average, ${shape.min_perimeter_efficiency.toFixed(2)} minimum. Shape-review provinces: ${shape.flagged_province_ids.join(', ') || 'none'}.`, 'Scores describe map structure, not gameplay balance.', ...r.scoring.warnings]) { const p = document.createElement('p'); p.textContent = text; container.append(p); }
   const links = document.createElement('p'); links.className = 'download-links';
@@ -188,13 +281,11 @@ function showDetails() {
 }
 async function init() {
   try {
-    const config = await api('/api/config'); state.defaults = config.defaults; state.presets = config.presets; state.token = config.token;
+    const config = await api('/api/config'); state.defaults = config.defaults; state.presets = config.presets; state.token = config.token; state.bases = config.province_bases;
     buildControls(); applyParameters(state.defaults);
-    $('settings-fields').disabled = false; $('generate').disabled = false; $('status').textContent = 'Ready to generate';
-    document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => { try { applyParameters({...parameters(), terrain_style: button.dataset.preset, land_fraction: -1, landmass_scale: -1, roughness: -1}); changed(); } catch (error) { showError(error.message); } }));
-    $('wrap_x').addEventListener('change', () => { state.parameters.wrap_x = $('wrap_x').checked; changed(); });
-    $('exact-count').addEventListener('change', () => { $('province_count').disabled = !$('exact-count').checked; state.parameters.province_count = $('exact-count').checked ? Number($('province_count').value) : 0; changed(); });
-    $('province_count').addEventListener('input', () => { state.parameters.province_count = $('province_count').value === '' ? null : Number($('province_count').value); changed(); });
+    $('status').textContent = 'Ready to generate';
+    document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => { try { if (button.dataset.preset === 'custom') selectCustom(); else applyParameters({...parameters(), terrain_style: button.dataset.preset, land_fraction: -1, landmass_scale: -1, roughness: -1}); changed(); } catch (error) { showError(error.message); } }));
+    $('topology').addEventListener('change', () => { state.parameters.topology = $('topology').value; state.parameters.wrap_x = $('topology').value !== 'flat'; topologyHint(); changed(); });
     for (const key of ['seed', 'division_seed']) $(key).addEventListener('input', changed);
     $('generate').addEventListener('click', generateMap); $('settings-form').addEventListener('submit', event => { event.preventDefault(); generateMap(); });
     $('reset').addEventListener('click', () => { applyParameters(state.defaults); changed(); });
@@ -225,6 +316,7 @@ async function init() {
     });
     const latest = await api('/api/latest');
     if (latest) { applyParameters(latest.parameters); showResult(latest); $('status').textContent = 'Previous map restored. Ready to generate.'; }
+    $('settings-fields').disabled = false; $('generate').disabled = false;
   } catch (error) { showError(error.message); $('status').textContent = 'Could not connect. Start the application with python app.py.'; }
 }
 init();

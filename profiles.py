@@ -18,6 +18,9 @@ for name, group in TERRAIN_GROUPS.items():
                     'roughness': .1 + (.7 - .1) * t, 'stretch': (1.0, 1.0),
                     'inland_factor': inland_factor, 'sea_fraction': sea_fraction}
 
+# Custom supplies explicit slider values; peninsula provides fallback values only.
+STYLES['custom'] = dict(STYLES['peninsula'])
+
 
 @lru_cache(maxsize=1)
 def catalog():
@@ -42,7 +45,8 @@ def targets_for(config, province_count=None):
     inland_base = statistics.mean(row['category_counts']['inland'] /
                                   (row['province_count'] - row['category_counts']['sea']) for row in members)
     land_base = statistics.mean(1 - row['category_counts']['sea'] / row['province_count'] for row in members)
-    style = STYLES[config.province_style]
+    effective_style = 'peninsula' if config.province_style == 'auto' else config.province_style
+    style = STYLES[effective_style]
     inland_base = min(1.0, inland_base * style['inland_factor'])
     if style['sea_fraction'] is not None:
         land_base = 1 - style['sea_fraction']
@@ -59,7 +63,7 @@ def targets_for(config, province_count=None):
     fractions = {'inland': land_share * inland_share,
                  'coastal': land_share * (1 - inland_share), 'sea': 1 - land_share}
     means = {category: sum(k * v for k, v in histogram.items()) for category, histogram in degree_histograms.items()}
-    global_profile = 'world' if config.wrap_x else name
+    global_profile = 'world' if config.effective_topology != 'flat' else name
     return {'profile': name, 'global_profile': global_profile, 'members': [row['name'] for row in members],
             'sources': [row['source'] for row in members], 'players': config.players,
             'baseline_provinces_per_player': density, 'province_count': count,
@@ -69,6 +73,7 @@ def targets_for(config, province_count=None):
             'degree_histograms': degree_histograms, 'degree_means': means,
             'mean_degree_target': sum(means[k] * fractions[k] for k in fractions),
             'province_style': config.province_style,
+            'effective_province_style': effective_style,
             'style_note': ('Peninsula reference selection is a design classification of coastal regional maps, not a vDiplomacy category.'
-                           if config.province_style == 'peninsula' else
+                           if effective_style == 'peninsula' else
                            'Continental/island inland and sea-share adjustments are designed presets, not fitted variant measurements.')}

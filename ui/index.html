@@ -22,11 +22,13 @@
             <h2 id="terrain-heading">Terrain</h2><p class="section-note">Shape the land and sea.</p>
             <div id="terrain-presets" class="segments" role="group" aria-label="Terrain preset">
               <button type="button" data-preset="continental" aria-pressed="false">Continental</button>
-              <button type="button" data-preset="peninsula" aria-pressed="false">Peninsula</button>
-              <button type="button" data-preset="islands" aria-pressed="true">Islands</button>
+              <button type="button" data-preset="peninsula" aria-pressed="true">Peninsula</button>
+              <button type="button" data-preset="islands" aria-pressed="false">Islands</button>
+              <button type="button" data-preset="custom" aria-pressed="false">Custom</button>
             </div>
             <div id="terrain-sliders"></div>
-            <label class="check"><input type="checkbox" id="wrap_x">Wrap left to right</label>
+            <label class="field" for="topology">Map topology<select id="topology"><option value="flat">Flat</option><option value="cylinder">Horizontal wrap</option><option value="sphere">Sphere</option></select></label>
+            <p class="hint" id="topology-hint">Rectangular map with open edges.</p>
             <details><summary>Advanced terrain</summary><div id="terrain-advanced" class="advanced-fields"></div></details>
             <label class="seed-label" for="seed">Terrain seed <span>optional</span></label>
             <input id="seed" class="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off" aria-describedby="seed-help">
@@ -35,12 +37,8 @@
           <section class="settings-section" aria-labelledby="province-heading">
             <h2 id="province-heading">Provinces</h2>
             <div id="province-sliders"></div>
-            <div class="exact-row"><label class="check"><input type="checkbox" id="exact-count">Use exact province count</label>
-              <input type="number" id="province_count" min="1" max="500000" step="1" value="99" aria-label="Exact province count" disabled></div>
             <p id="target-summary" class="target-summary">Target: 99 provinces</p>
-            <details><summary>Advanced provinces</summary><div id="province-advanced" class="advanced-fields"></div>
-              <details><summary>Scoring</summary><div id="scoring-fields" class="advanced-fields"></div></details>
-            </details>
+            <details><summary>Advanced provinces</summary><div id="province-advanced" class="advanced-fields"></div></details>
             <label class="seed-label" for="division_seed">Province seed <span>optional</span></label>
             <input id="division_seed" class="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off" aria-describedby="division-seed-help">
             <span id="division-seed-help" class="sr-only">Leave blank for a new random province division seed.</span>
@@ -53,8 +51,7 @@
       <section class="preview" aria-label="Map preview">
         <div class="preview-toolbar">
           <div class="segments stages" role="tablist" aria-label="Preview stage">
-            <button role="tab" aria-selected="false" data-stage="01_elevation.svg" disabled>Elevation</button>
-            <button role="tab" aria-selected="false" data-stage="02_cleaned.svg" disabled>Cleaned terrain</button>
+            <button role="tab" aria-selected="false" data-stage="02_cleaned.svg" disabled>Terrain</button>
             <button role="tab" aria-selected="true" data-stage="03_provinces.svg" disabled>Provinces</button>
           </div>
           <div class="preview-actions">
@@ -77,6 +74,7 @@
   </main>
   <footer class="status-bar"><div id="status" role="status" aria-live="polite">Connecting to Map workshop…</div><span id="seed-status">Seeds are saved with each map.</span><progress id="progress" max="1" value="0" hidden aria-label="Generation progress"></progress></footer>
   <div id="error" class="error-message" role="alert" hidden></div>
+  <div id="parameter-tooltip" role="tooltip" hidden></div>
   <dialog id="details-dialog"><div class="dialog-heading"><h2>Map details</h2><button id="close-details" aria-label="Close map details">Close</button></div><div id="details-content"></div></dialog>
 </body>
 </html>
