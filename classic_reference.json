@@ -1,0 +1,868 @@
+{
+  "source": "https://raw.githubusercontent.com/diplomacy/diplomacy/master/diplomacy/maps/standard.map",
+  "convention": "Distinct playable province neighbors; coasts collapsed; Switzerland excluded. Geographic adjacency, not unit move legality.",
+  "provinces": [
+    {
+      "id": "ADR",
+      "land": false,
+      "neighbors": [
+        "ALB",
+        "APU",
+        "ION",
+        "TRI",
+        "VEN"
+      ]
+    },
+    {
+      "id": "AEG",
+      "land": false,
+      "neighbors": [
+        "BUL",
+        "CON",
+        "EAS",
+        "GRE",
+        "ION",
+        "SMY"
+      ]
+    },
+    {
+      "id": "ALB",
+      "land": true,
+      "neighbors": [
+        "ADR",
+        "GRE",
+        "ION",
+        "SER",
+        "TRI"
+      ]
+    },
+    {
+      "id": "ANK",
+      "land": true,
+      "neighbors": [
+        "ARM",
+        "BLA",
+        "CON",
+        "SMY"
+      ]
+    },
+    {
+      "id": "APU",
+      "land": true,
+      "neighbors": [
+        "ADR",
+        "ION",
+        "NAP",
+        "ROM",
+        "VEN"
+      ]
+    },
+    {
+      "id": "ARM",
+      "land": true,
+      "neighbors": [
+        "ANK",
+        "BLA",
+        "SEV",
+        "SMY",
+        "SYR"
+      ]
+    },
+    {
+      "id": "BAL",
+      "land": false,
+      "neighbors": [
+        "BER",
+        "BOT",
+        "DEN",
+        "LVN",
+        "KIE",
+        "PRU",
+        "SWE"
+      ]
+    },
+    {
+      "id": "BAR",
+      "land": false,
+      "neighbors": [
+        "NWY",
+        "NWG",
+        "STP"
+      ]
+    },
+    {
+      "id": "BEL",
+      "land": true,
+      "neighbors": [
+        "BUR",
+        "ENG",
+        "HOL",
+        "NTH",
+        "PIC",
+        "RUH"
+      ]
+    },
+    {
+      "id": "BER",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "KIE",
+        "MUN",
+        "PRU",
+        "SIL"
+      ]
+    },
+    {
+      "id": "BLA",
+      "land": false,
+      "neighbors": [
+        "ANK",
+        "ARM",
+        "BUL",
+        "CON",
+        "RUM",
+        "SEV"
+      ]
+    },
+    {
+      "id": "BOH",
+      "land": true,
+      "neighbors": [
+        "GAL",
+        "MUN",
+        "SIL",
+        "TYR",
+        "VIE"
+      ]
+    },
+    {
+      "id": "BOT",
+      "land": false,
+      "neighbors": [
+        "BAL",
+        "FIN",
+        "LVN",
+        "STP",
+        "SWE"
+      ]
+    },
+    {
+      "id": "BRE",
+      "land": true,
+      "neighbors": [
+        "ENG",
+        "GAS",
+        "MAO",
+        "PAR",
+        "PIC"
+      ]
+    },
+    {
+      "id": "BUD",
+      "land": true,
+      "neighbors": [
+        "GAL",
+        "RUM",
+        "SER",
+        "TRI",
+        "VIE"
+      ]
+    },
+    {
+      "id": "BUL",
+      "land": true,
+      "neighbors": [
+        "AEG",
+        "BLA",
+        "CON",
+        "GRE",
+        "RUM",
+        "SER"
+      ]
+    },
+    {
+      "id": "BUR",
+      "land": true,
+      "neighbors": [
+        "BEL",
+        "GAS",
+        "RUH",
+        "MAR",
+        "MUN",
+        "PAR",
+        "PIC"
+      ]
+    },
+    {
+      "id": "CLY",
+      "land": true,
+      "neighbors": [
+        "EDI",
+        "LVP",
+        "NAO",
+        "NWG"
+      ]
+    },
+    {
+      "id": "CON",
+      "land": true,
+      "neighbors": [
+        "AEG",
+        "BUL",
+        "BLA",
+        "ANK",
+        "SMY"
+      ]
+    },
+    {
+      "id": "DEN",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "HEL",
+        "KIE",
+        "NTH",
+        "SKA",
+        "SWE"
+      ]
+    },
+    {
+      "id": "EAS",
+      "land": false,
+      "neighbors": [
+        "AEG",
+        "ION",
+        "SMY",
+        "SYR"
+      ]
+    },
+    {
+      "id": "EDI",
+      "land": true,
+      "neighbors": [
+        "CLY",
+        "LVP",
+        "NTH",
+        "NWG",
+        "YOR"
+      ]
+    },
+    {
+      "id": "ENG",
+      "land": false,
+      "neighbors": [
+        "BEL",
+        "BRE",
+        "IRI",
+        "LON",
+        "MAO",
+        "NTH",
+        "PIC",
+        "WAL"
+      ]
+    },
+    {
+      "id": "FIN",
+      "land": true,
+      "neighbors": [
+        "BOT",
+        "NWY",
+        "STP",
+        "SWE"
+      ]
+    },
+    {
+      "id": "GAL",
+      "land": true,
+      "neighbors": [
+        "BOH",
+        "BUD",
+        "RUM",
+        "SIL",
+        "UKR",
+        "VIE",
+        "WAR"
+      ]
+    },
+    {
+      "id": "GAS",
+      "land": true,
+      "neighbors": [
+        "BUR",
+        "BRE",
+        "MAO",
+        "MAR",
+        "PAR",
+        "SPA"
+      ]
+    },
+    {
+      "id": "GRE",
+      "land": true,
+      "neighbors": [
+        "AEG",
+        "ALB",
+        "BUL",
+        "ION",
+        "SER"
+      ]
+    },
+    {
+      "id": "HEL",
+      "land": false,
+      "neighbors": [
+        "DEN",
+        "HOL",
+        "KIE",
+        "NTH"
+      ]
+    },
+    {
+      "id": "HOL",
+      "land": true,
+      "neighbors": [
+        "BEL",
+        "HEL",
+        "KIE",
+        "NTH",
+        "RUH"
+      ]
+    },
+    {
+      "id": "ION",
+      "land": false,
+      "neighbors": [
+        "ADR",
+        "AEG",
+        "ALB",
+        "APU",
+        "EAS",
+        "GRE",
+        "NAP",
+        "TUN",
+        "TYS"
+      ]
+    },
+    {
+      "id": "IRI",
+      "land": false,
+      "neighbors": [
+        "ENG",
+        "LVP",
+        "MAO",
+        "NAO",
+        "WAL"
+      ]
+    },
+    {
+      "id": "KIE",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "BER",
+        "DEN",
+        "HEL",
+        "HOL",
+        "MUN",
+        "RUH"
+      ]
+    },
+    {
+      "id": "LON",
+      "land": true,
+      "neighbors": [
+        "ENG",
+        "NTH",
+        "YOR",
+        "WAL"
+      ]
+    },
+    {
+      "id": "LVN",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "BOT",
+        "MOS",
+        "PRU",
+        "STP",
+        "WAR"
+      ]
+    },
+    {
+      "id": "LVP",
+      "land": true,
+      "neighbors": [
+        "CLY",
+        "EDI",
+        "IRI",
+        "NAO",
+        "WAL",
+        "YOR"
+      ]
+    },
+    {
+      "id": "LYO",
+      "land": false,
+      "neighbors": [
+        "MAR",
+        "PIE",
+        "SPA",
+        "TUS",
+        "TYS",
+        "WES"
+      ]
+    },
+    {
+      "id": "MAO",
+      "land": false,
+      "neighbors": [
+        "BRE",
+        "ENG",
+        "GAS",
+        "IRI",
+        "NAF",
+        "NAO",
+        "POR",
+        "SPA",
+        "WES"
+      ]
+    },
+    {
+      "id": "MAR",
+      "land": true,
+      "neighbors": [
+        "BUR",
+        "GAS",
+        "LYO",
+        "PIE",
+        "SPA"
+      ]
+    },
+    {
+      "id": "MOS",
+      "land": true,
+      "neighbors": [
+        "LVN",
+        "SEV",
+        "STP",
+        "UKR",
+        "WAR"
+      ]
+    },
+    {
+      "id": "MUN",
+      "land": true,
+      "neighbors": [
+        "BER",
+        "BOH",
+        "BUR",
+        "KIE",
+        "RUH",
+        "SIL",
+        "TYR"
+      ]
+    },
+    {
+      "id": "NAF",
+      "land": true,
+      "neighbors": [
+        "MAO",
+        "TUN",
+        "WES"
+      ]
+    },
+    {
+      "id": "NAO",
+      "land": false,
+      "neighbors": [
+        "CLY",
+        "IRI",
+        "LVP",
+        "MAO",
+        "NWG"
+      ]
+    },
+    {
+      "id": "NAP",
+      "land": true,
+      "neighbors": [
+        "APU",
+        "ION",
+        "ROM",
+        "TYS"
+      ]
+    },
+    {
+      "id": "NWY",
+      "land": true,
+      "neighbors": [
+        "BAR",
+        "FIN",
+        "NTH",
+        "NWG",
+        "SKA",
+        "STP",
+        "SWE"
+      ]
+    },
+    {
+      "id": "NTH",
+      "land": false,
+      "neighbors": [
+        "BEL",
+        "DEN",
+        "EDI",
+        "ENG",
+        "LON",
+        "HEL",
+        "HOL",
+        "NWY",
+        "NWG",
+        "SKA",
+        "YOR"
+      ]
+    },
+    {
+      "id": "NWG",
+      "land": false,
+      "neighbors": [
+        "BAR",
+        "CLY",
+        "EDI",
+        "NAO",
+        "NWY",
+        "NTH"
+      ]
+    },
+    {
+      "id": "PAR",
+      "land": true,
+      "neighbors": [
+        "BUR",
+        "BRE",
+        "GAS",
+        "PIC"
+      ]
+    },
+    {
+      "id": "PIC",
+      "land": true,
+      "neighbors": [
+        "BEL",
+        "BRE",
+        "BUR",
+        "ENG",
+        "PAR"
+      ]
+    },
+    {
+      "id": "PIE",
+      "land": true,
+      "neighbors": [
+        "LYO",
+        "MAR",
+        "TUS",
+        "TYR",
+        "VEN"
+      ]
+    },
+    {
+      "id": "POR",
+      "land": true,
+      "neighbors": [
+        "MAO",
+        "SPA"
+      ]
+    },
+    {
+      "id": "PRU",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "BER",
+        "LVN",
+        "SIL",
+        "WAR"
+      ]
+    },
+    {
+      "id": "ROM",
+      "land": true,
+      "neighbors": [
+        "APU",
+        "NAP",
+        "TUS",
+        "TYS",
+        "VEN"
+      ]
+    },
+    {
+      "id": "RUH",
+      "land": true,
+      "neighbors": [
+        "BEL",
+        "BUR",
+        "HOL",
+        "KIE",
+        "MUN"
+      ]
+    },
+    {
+      "id": "RUM",
+      "land": true,
+      "neighbors": [
+        "BLA",
+        "BUD",
+        "BUL",
+        "GAL",
+        "SER",
+        "SEV",
+        "UKR"
+      ]
+    },
+    {
+      "id": "SER",
+      "land": true,
+      "neighbors": [
+        "ALB",
+        "BUD",
+        "BUL",
+        "GRE",
+        "RUM",
+        "TRI"
+      ]
+    },
+    {
+      "id": "SEV",
+      "land": true,
+      "neighbors": [
+        "ARM",
+        "BLA",
+        "MOS",
+        "RUM",
+        "UKR"
+      ]
+    },
+    {
+      "id": "SIL",
+      "land": true,
+      "neighbors": [
+        "BER",
+        "BOH",
+        "GAL",
+        "MUN",
+        "PRU",
+        "WAR"
+      ]
+    },
+    {
+      "id": "SKA",
+      "land": false,
+      "neighbors": [
+        "DEN",
+        "NWY",
+        "NTH",
+        "SWE"
+      ]
+    },
+    {
+      "id": "SMY",
+      "land": true,
+      "neighbors": [
+        "AEG",
+        "ANK",
+        "ARM",
+        "CON",
+        "EAS",
+        "SYR"
+      ]
+    },
+    {
+      "id": "SPA",
+      "land": true,
+      "neighbors": [
+        "GAS",
+        "LYO",
+        "MAO",
+        "MAR",
+        "POR",
+        "WES"
+      ]
+    },
+    {
+      "id": "STP",
+      "land": true,
+      "neighbors": [
+        "BAR",
+        "BOT",
+        "FIN",
+        "LVN",
+        "MOS",
+        "NWY"
+      ]
+    },
+    {
+      "id": "SWE",
+      "land": true,
+      "neighbors": [
+        "BAL",
+        "BOT",
+        "DEN",
+        "FIN",
+        "NWY",
+        "SKA"
+      ]
+    },
+    {
+      "id": "SYR",
+      "land": true,
+      "neighbors": [
+        "ARM",
+        "EAS",
+        "SMY"
+      ]
+    },
+    {
+      "id": "TRI",
+      "land": true,
+      "neighbors": [
+        "ADR",
+        "ALB",
+        "BUD",
+        "SER",
+        "TYR",
+        "VEN",
+        "VIE"
+      ]
+    },
+    {
+      "id": "TUN",
+      "land": true,
+      "neighbors": [
+        "ION",
+        "NAF",
+        "TYS",
+        "WES"
+      ]
+    },
+    {
+      "id": "TUS",
+      "land": true,
+      "neighbors": [
+        "LYO",
+        "PIE",
+        "ROM",
+        "TYS",
+        "VEN"
+      ]
+    },
+    {
+      "id": "TYR",
+      "land": true,
+      "neighbors": [
+        "BOH",
+        "MUN",
+        "PIE",
+        "TRI",
+        "VEN",
+        "VIE"
+      ]
+    },
+    {
+      "id": "TYS",
+      "land": false,
+      "neighbors": [
+        "ION",
+        "LYO",
+        "ROM",
+        "NAP",
+        "TUN",
+        "TUS",
+        "WES"
+      ]
+    },
+    {
+      "id": "UKR",
+      "land": true,
+      "neighbors": [
+        "GAL",
+        "MOS",
+        "RUM",
+        "SEV",
+        "WAR"
+      ]
+    },
+    {
+      "id": "VEN",
+      "land": true,
+      "neighbors": [
+        "ADR",
+        "APU",
+        "PIE",
+        "ROM",
+        "TRI",
+        "TUS",
+        "TYR"
+      ]
+    },
+    {
+      "id": "VIE",
+      "land": true,
+      "neighbors": [
+        "BOH",
+        "BUD",
+        "GAL",
+        "TRI",
+        "TYR"
+      ]
+    },
+    {
+      "id": "WAL",
+      "land": true,
+      "neighbors": [
+        "ENG",
+        "IRI",
+        "LON",
+        "LVP",
+        "YOR"
+      ]
+    },
+    {
+      "id": "WAR",
+      "land": true,
+      "neighbors": [
+        "GAL",
+        "LVN",
+        "MOS",
+        "PRU",
+        "SIL",
+        "UKR"
+      ]
+    },
+    {
+      "id": "WES",
+      "land": false,
+      "neighbors": [
+        "MAO",
+        "LYO",
+        "NAF",
+        "SPA",
+        "TUN",
+        "TYS"
+      ]
+    },
+    {
+      "id": "YOR",
+      "land": true,
+      "neighbors": [
+        "EDI",
+        "LON",
+        "LVP",
+        "NTH",
+        "WAL"
+      ]
+    }
+  ]
+}

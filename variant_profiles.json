@@ -1,0 +1,774 @@
+{
+  "revision": "72c81f0dd73bedccc11f13a750dfcc62f580549a",
+  "maps": [
+    {
+      "key": "Classic",
+      "name": "Classic",
+      "players": 7,
+      "province_count": 75,
+      "category_counts": {
+        "sea": 19,
+        "coastal": 42,
+        "inland": 14
+      },
+      "degree_histograms": {
+        "inland": {
+          "5": 6,
+          "7": 3,
+          "4": 1,
+          "6": 4
+        },
+        "coastal": {
+          "5": 18,
+          "4": 6,
+          "6": 10,
+          "7": 5,
+          "3": 2,
+          "2": 1
+        },
+        "sea": {
+          "5": 4,
+          "6": 5,
+          "7": 2,
+          "3": 1,
+          "4": 3,
+          "8": 1,
+          "9": 2,
+          "11": 1
+        }
+      },
+      "graphs": {
+        "all": {
+          "node_count": 75,
+          "edge_count": 206,
+          "component_sizes": [
+            75
+          ],
+          "unreachable_pair_fraction": 0.0,
+          "articulation_count": 0,
+          "articulation_fraction": 0.0,
+          "bridge_count": 0,
+          "bridge_fraction": 0.0,
+          "path_source_count": 75,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 412,
+            "2": 838,
+            "3": 1118,
+            "4": 1134,
+            "5": 1032,
+            "6": 724,
+            "7": 286,
+            "8": 6
+          },
+          "mean_path_hops": 3.8796396396396395
+        },
+        "land": {
+          "node_count": 56,
+          "edge_count": 111,
+          "component_sizes": [
+            48,
+            6,
+            2
+          ],
+          "unreachable_pair_fraction": 0.2571428571428571,
+          "articulation_count": 1,
+          "articulation_fraction": 0.017857142857142856,
+          "bridge_count": 2,
+          "bridge_fraction": 0.018018018018018018,
+          "path_source_count": 56,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 222,
+            "2": 330,
+            "3": 434,
+            "4": 460,
+            "5": 390,
+            "6": 246,
+            "7": 130,
+            "8": 60,
+            "9": 14,
+            "10": 2
+          },
+          "mean_path_hops": 3.9274475524475525
+        },
+        "sea": {
+          "node_count": 19,
+          "edge_count": 21,
+          "component_sizes": [
+            16,
+            2,
+            1
+          ],
+          "unreachable_pair_fraction": 0.29239766081871343,
+          "articulation_count": 6,
+          "articulation_fraction": 0.3157894736842105,
+          "bridge_count": 7,
+          "bridge_fraction": 0.3333333333333333,
+          "path_source_count": 19,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 42,
+            "2": 52,
+            "3": 52,
+            "4": 26,
+            "5": 34,
+            "6": 18,
+            "7": 18
+          },
+          "mean_path_hops": 3.347107438016529
+        }
+      },
+      "source": "https://github.com/Sleepcap/vDiplomacy/blob/72c81f0dd73bedccc11f13a750dfcc62f580549a/variants/Classic/install.php",
+      "variant_url": "https://www.vdiplomacy.com/variants.php?variantID=1",
+      "category_note": "Coastal means directly adjacent to a sea province, matching generator geometry; may differ from declared river-access Coast."
+    },
+    {
+      "key": "AncMed",
+      "name": "The Ancient Mediterranean",
+      "players": 5,
+      "province_count": 79,
+      "category_counts": {
+        "sea": 20,
+        "coastal": 43,
+        "inland": 16
+      },
+      "degree_histograms": {
+        "inland": {
+          "5": 7,
+          "4": 3,
+          "6": 5,
+          "3": 1
+        },
+        "coastal": {
+          "7": 4,
+          "4": 9,
+          "5": 11,
+          "3": 2,
+          "6": 17
+        },
+        "sea": {
+          "6": 2,
+          "8": 9,
+          "5": 2,
+          "9": 2,
+          "4": 2,
+          "3": 1,
+          "7": 2
+        }
+      },
+      "graphs": {
+        "all": {
+          "node_count": 79,
+          "edge_count": 222,
+          "component_sizes": [
+            79
+          ],
+          "unreachable_pair_fraction": 0.0,
+          "articulation_count": 0,
+          "articulation_fraction": 0.0,
+          "bridge_count": 0,
+          "bridge_fraction": 0.0,
+          "path_source_count": 79,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 444,
+            "2": 884,
+            "3": 1180,
+            "4": 1306,
+            "5": 1192,
+            "6": 826,
+            "7": 320,
+            "8": 10
+          },
+          "mean_path_hops": 3.929243752028562
+        },
+        "land": {
+          "node_count": 59,
+          "edge_count": 114,
+          "component_sizes": [
+            55,
+            2,
+            1,
+            1
+          ],
+          "unreachable_pair_fraction": 0.13150204558737577,
+          "articulation_count": 2,
+          "articulation_fraction": 0.03389830508474576,
+          "bridge_count": 3,
+          "bridge_fraction": 0.02631578947368421,
+          "path_source_count": 59,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 228,
+            "2": 312,
+            "3": 338,
+            "4": 366,
+            "5": 368,
+            "6": 368,
+            "7": 380,
+            "8": 316,
+            "9": 188,
+            "10": 80,
+            "11": 24,
+            "12": 4
+          },
+          "mean_path_hops": 5.1716016150740245
+        },
+        "sea": {
+          "node_count": 20,
+          "edge_count": 29,
+          "component_sizes": [
+            18,
+            1,
+            1
+          ],
+          "unreachable_pair_fraction": 0.1947368421052632,
+          "articulation_count": 2,
+          "articulation_fraction": 0.1,
+          "bridge_count": 2,
+          "bridge_fraction": 0.06896551724137931,
+          "path_source_count": 20,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 58,
+            "2": 78,
+            "3": 84,
+            "4": 50,
+            "5": 28,
+            "6": 8
+          },
+          "mean_path_hops": 2.7908496732026142
+        }
+      },
+      "source": "https://github.com/Sleepcap/vDiplomacy/blob/72c81f0dd73bedccc11f13a750dfcc62f580549a/variants/AncMed/install.php",
+      "variant_url": "https://www.vdiplomacy.com/variants.php?variantID=9",
+      "category_note": "Coastal means directly adjacent to a sea province, matching generator geometry; may differ from declared river-access Coast."
+    },
+    {
+      "key": "Modern2",
+      "name": "Modern Diplomacy II",
+      "players": 10,
+      "province_count": 141,
+      "category_counts": {
+        "coastal": 78,
+        "sea": 33,
+        "inland": 30
+      },
+      "degree_histograms": {
+        "inland": {
+          "7": 3,
+          "5": 9,
+          "9": 1,
+          "8": 2,
+          "2": 1,
+          "6": 9,
+          "4": 2,
+          "3": 3
+        },
+        "coastal": {
+          "7": 10,
+          "5": 26,
+          "6": 23,
+          "4": 10,
+          "8": 4,
+          "3": 3,
+          "2": 1,
+          "11": 1
+        },
+        "sea": {
+          "6": 12,
+          "5": 3,
+          "4": 5,
+          "7": 6,
+          "10": 1,
+          "9": 3,
+          "8": 1,
+          "11": 1,
+          "3": 1
+        }
+      },
+      "graphs": {
+        "all": {
+          "node_count": 141,
+          "edge_count": 402,
+          "component_sizes": [
+            141
+          ],
+          "unreachable_pair_fraction": 0.0,
+          "articulation_count": 0,
+          "articulation_fraction": 0.0,
+          "bridge_count": 0,
+          "bridge_fraction": 0.0,
+          "path_source_count": 141,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 804,
+            "2": 1748,
+            "3": 2582,
+            "4": 3086,
+            "5": 3300,
+            "6": 3178,
+            "7": 2660,
+            "8": 1808,
+            "9": 542,
+            "10": 32
+          },
+          "mean_path_hops": 4.976697061803445
+        },
+        "land": {
+          "node_count": 108,
+          "edge_count": 233,
+          "component_sizes": [
+            100,
+            6,
+            1,
+            1
+          ],
+          "unreachable_pair_fraction": 0.1407061266874351,
+          "articulation_count": 3,
+          "articulation_fraction": 0.027777777777777776,
+          "bridge_count": 1,
+          "bridge_fraction": 0.004291845493562232,
+          "path_source_count": 108,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 466,
+            "2": 788,
+            "3": 1044,
+            "4": 1222,
+            "5": 1284,
+            "6": 1130,
+            "7": 942,
+            "8": 758,
+            "9": 570,
+            "10": 426,
+            "11": 350,
+            "12": 278,
+            "13": 200,
+            "14": 168,
+            "15": 122,
+            "16": 82,
+            "17": 48,
+            "18": 30,
+            "19": 18,
+            "20": 4
+          },
+          "mean_path_hops": 6.280765357502518
+        },
+        "sea": {
+          "node_count": 33,
+          "edge_count": 39,
+          "component_sizes": [
+            24,
+            3,
+            3,
+            2,
+            1
+          ],
+          "unreachable_pair_fraction": 0.4640151515151515,
+          "articulation_count": 11,
+          "articulation_fraction": 0.3333333333333333,
+          "bridge_count": 13,
+          "bridge_fraction": 0.3333333333333333,
+          "path_source_count": 33,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 78,
+            "2": 90,
+            "3": 82,
+            "4": 62,
+            "5": 46,
+            "6": 46,
+            "7": 48,
+            "8": 52,
+            "9": 34,
+            "10": 22,
+            "11": 6
+          },
+          "mean_path_hops": 4.597173144876325
+        }
+      },
+      "source": "https://github.com/Sleepcap/vDiplomacy/blob/72c81f0dd73bedccc11f13a750dfcc62f580549a/variants/Modern2/install.php",
+      "variant_url": "https://www.vdiplomacy.com/variants.php?variantID=19",
+      "category_note": "Coastal means directly adjacent to a sea province, matching generator geometry; may differ from declared river-access Coast."
+    },
+    {
+      "key": "Imperial2",
+      "name": "Imperial Diplomacy II",
+      "players": 13,
+      "province_count": 346,
+      "category_counts": {
+        "coastal": 178,
+        "sea": 87,
+        "inland": 81
+      },
+      "degree_histograms": {
+        "inland": {
+          "5": 27,
+          "8": 4,
+          "3": 4,
+          "6": 16,
+          "7": 7,
+          "4": 21,
+          "9": 2
+        },
+        "coastal": {
+          "5": 49,
+          "6": 34,
+          "4": 40,
+          "7": 21,
+          "3": 25,
+          "8": 4,
+          "2": 2,
+          "9": 3
+        },
+        "sea": {
+          "9": 16,
+          "8": 19,
+          "6": 13,
+          "12": 3,
+          "7": 15,
+          "5": 7,
+          "4": 2,
+          "10": 4,
+          "13": 2,
+          "11": 6
+        }
+      },
+      "graphs": {
+        "all": {
+          "node_count": 346,
+          "edge_count": 1005,
+          "component_sizes": [
+            346
+          ],
+          "unreachable_pair_fraction": 0.0,
+          "articulation_count": 0,
+          "articulation_fraction": 0.0,
+          "bridge_count": 0,
+          "bridge_fraction": 0.0,
+          "path_source_count": 346,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 2010,
+            "2": 4928,
+            "3": 8274,
+            "4": 11716,
+            "5": 14566,
+            "6": 16538,
+            "7": 16836,
+            "8": 16062,
+            "9": 13724,
+            "10": 9560,
+            "11": 4256,
+            "12": 832,
+            "13": 68
+          },
+          "mean_path_hops": 6.523900477506912
+        },
+        "land": {
+          "node_count": 259,
+          "edge_count": 477,
+          "component_sizes": [
+            150,
+            67,
+            5,
+            3,
+            3,
+            2,
+            2,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "unreachable_pair_fraction": 0.5987848313429709,
+          "articulation_count": 20,
+          "articulation_fraction": 0.07722007722007722,
+          "bridge_count": 24,
+          "bridge_fraction": 0.050314465408805034,
+          "path_source_count": 259,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 954,
+            "2": 1582,
+            "3": 2020,
+            "4": 2336,
+            "5": 2508,
+            "6": 2496,
+            "7": 2444,
+            "8": 2448,
+            "9": 2312,
+            "10": 2066,
+            "11": 1776,
+            "12": 1448,
+            "13": 1058,
+            "14": 740,
+            "15": 414,
+            "16": 156,
+            "17": 44,
+            "18": 8
+          },
+          "mean_path_hops": 7.3040656471465875
+        },
+        "sea": {
+          "node_count": 87,
+          "edge_count": 162,
+          "component_sizes": [
+            86,
+            1
+          ],
+          "unreachable_pair_fraction": 0.02298850574712641,
+          "articulation_count": 14,
+          "articulation_fraction": 0.16091954022988506,
+          "bridge_count": 11,
+          "bridge_fraction": 0.06790123456790123,
+          "path_source_count": 87,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 324,
+            "2": 574,
+            "3": 744,
+            "4": 818,
+            "5": 838,
+            "6": 800,
+            "7": 710,
+            "8": 648,
+            "9": 576,
+            "10": 480,
+            "11": 366,
+            "12": 242,
+            "13": 124,
+            "14": 54,
+            "15": 12
+          },
+          "mean_path_hops": 6.235567715458276
+        }
+      },
+      "source": "https://github.com/Sleepcap/vDiplomacy/blob/72c81f0dd73bedccc11f13a750dfcc62f580549a/variants/Imperial2/install.php",
+      "variant_url": "https://www.vdiplomacy.com/variants.php?variantID=81",
+      "category_note": "Coastal means directly adjacent to a sea province, matching generator geometry; may differ from declared river-access Coast."
+    },
+    {
+      "key": "WWIV",
+      "name": "World War IV",
+      "players": 35,
+      "province_count": 513,
+      "category_counts": {
+        "coastal": 251,
+        "inland": 165,
+        "sea": 97
+      },
+      "degree_histograms": {
+        "inland": {
+          "5": 46,
+          "4": 29,
+          "8": 13,
+          "6": 44,
+          "7": 21,
+          "3": 6,
+          "9": 6
+        },
+        "coastal": {
+          "5": 77,
+          "6": 57,
+          "3": 16,
+          "7": 27,
+          "4": 58,
+          "8": 11,
+          "2": 2,
+          "9": 3
+        },
+        "sea": {
+          "6": 12,
+          "7": 23,
+          "5": 6,
+          "8": 14,
+          "10": 13,
+          "9": 17,
+          "4": 1,
+          "11": 5,
+          "13": 3,
+          "12": 2,
+          "14": 1
+        }
+      },
+      "graphs": {
+        "all": {
+          "node_count": 513,
+          "edge_count": 1521,
+          "component_sizes": [
+            513
+          ],
+          "unreachable_pair_fraction": 0.0,
+          "articulation_count": 0,
+          "articulation_fraction": 0.0,
+          "bridge_count": 0,
+          "bridge_fraction": 0.0,
+          "path_source_count": 513,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 3042,
+            "2": 7512,
+            "3": 13076,
+            "4": 19438,
+            "5": 25776,
+            "6": 31298,
+            "7": 34340,
+            "8": 35352,
+            "9": 33348,
+            "10": 27688,
+            "11": 19326,
+            "12": 9660,
+            "13": 2566,
+            "14": 234
+          },
+          "mean_path_hops": 7.298755787037037
+        },
+        "land": {
+          "node_count": 416,
+          "edge_count": 886,
+          "component_sizes": [
+            365,
+            6,
+            5,
+            5,
+            5,
+            3,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "unreachable_pair_fraction": 0.2297961075069509,
+          "articulation_count": 30,
+          "articulation_fraction": 0.07211538461538461,
+          "bridge_count": 32,
+          "bridge_fraction": 0.03611738148984198,
+          "path_source_count": 416,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 1772,
+            "2": 3192,
+            "3": 4348,
+            "4": 5168,
+            "5": 5642,
+            "6": 5824,
+            "7": 5742,
+            "8": 5900,
+            "9": 6402,
+            "10": 6864,
+            "11": 7058,
+            "12": 7200,
+            "13": 7132,
+            "14": 6570,
+            "15": 5636,
+            "16": 4902,
+            "17": 4446,
+            "18": 4042,
+            "19": 3698,
+            "20": 3624,
+            "21": 3590,
+            "22": 3430,
+            "23": 3212,
+            "24": 2944,
+            "25": 2610,
+            "26": 2216,
+            "27": 1758,
+            "28": 1464,
+            "29": 1358,
+            "30": 1250,
+            "31": 1112,
+            "32": 1012,
+            "33": 808,
+            "34": 498,
+            "35": 278,
+            "36": 172,
+            "37": 80,
+            "38": 14
+          },
+          "mean_path_hops": 13.799696167498947
+        },
+        "sea": {
+          "node_count": 97,
+          "edge_count": 159,
+          "component_sizes": [
+            96,
+            1
+          ],
+          "unreachable_pair_fraction": 0.020618556701030966,
+          "articulation_count": 15,
+          "articulation_fraction": 0.15463917525773196,
+          "bridge_count": 13,
+          "bridge_fraction": 0.08176100628930817,
+          "path_source_count": 97,
+          "paths_exact": true,
+          "path_hop_histogram": {
+            "1": 318,
+            "2": 576,
+            "3": 762,
+            "4": 854,
+            "5": 894,
+            "6": 860,
+            "7": 764,
+            "8": 672,
+            "9": 660,
+            "10": 658,
+            "11": 612,
+            "12": 552,
+            "13": 440,
+            "14": 282,
+            "15": 146,
+            "16": 54,
+            "17": 14,
+            "18": 2
+          },
+          "mean_path_hops": 7.2804824561403505
+        }
+      },
+      "source": "https://github.com/Sleepcap/vDiplomacy/blob/72c81f0dd73bedccc11f13a750dfcc62f580549a/variants/WWIV/install.php",
+      "variant_url": "https://www.vdiplomacy.com/variants.php?variantID=52",
+      "category_note": "Coastal means directly adjacent to a sea province, matching generator geometry; may differ from declared river-access Coast."
+    }
+  ]
+}

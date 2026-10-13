@@ -1,0 +1,70 @@
+"""Documented variant baselines and user-adjusted generation targets."""
+from collections import Counter
+from functools import lru_cache
+import json
+from pathlib import Path
+import statistics
+
+
+STYLES = {
+    'peninsula': {'land_fraction': .58, 'landmass_scale': .16, 'roughness': .25,
+                  'stretch': (1.5, .8), 'inland_factor': 1.0, 'sea_fraction': None},
+    'continental': {'land_fraction': .68, 'landmass_scale': .34, 'roughness': .2,
+                    'stretch': (1.0, 1.0), 'inland_factor': 1.8, 'sea_fraction': .22},
+    'islands': {'land_fraction': .4, 'landmass_scale': .09, 'roughness': .2,
+                'stretch': (1.0, 1.0), 'inland_factor': .3, 'sea_fraction': .4},
+}
+
+
+@lru_cache(maxsize=1)
+def catalog():
+    return {row['key']: row for row in json.loads(Path(__file__).with_name('variant_profiles.json').read_text(encoding='utf-8'))['maps']}
+
+
+def reference_members(profile):
+    keys = {'classic': ('Classic',), 'peninsula': ('Classic', 'AncMed', 'Modern2'),
+            'world': ('Imperial2', 'WWIV')}[profile]
+    return [catalog()[key] for key in keys]
+
+
+def profile_name(config):
+    return config.reference_profile if config.reference_profile != 'auto' else 'peninsula'
+
+
+def targets_for(config, province_count=None):
+    name = profile_name(config)
+    members = reference_members(name)
+    density = statistics.median(row['province_count'] / row['players'] for row in members)
+    count = province_count or config.province_count or max(1, round(config.players * density * config.size_ratio))
+    inland_base = statistics.mean(row['category_counts']['inland'] /
+                                  (row['province_count'] - row['category_counts']['sea']) for row in members)
+    land_base = statistics.mean(1 - row['category_counts']['sea'] / row['province_count'] for row in members)
+    style = STYLES[config.terrain_style]
+    inland_base = min(1.0, inland_base * style['inland_factor'])
+    if style['sea_fraction'] is not None:
+        land_base = 1 - style['sea_fraction']
+    land_share = config.land_province_fraction if config.land_province_fraction >= 0 else land_base
+    inland_share = min(1.0, inland_base * config.inland_ratio)
+    degree_histograms = {}
+    for category in ('inland', 'coastal', 'sea'):
+        histogram = Counter()
+        for member in members:
+            raw = member['degree_histograms'][category]
+            for degree, frequency in raw.items():
+                histogram[float(degree) * config.connectivity_ratio] += frequency / sum(raw.values()) / len(members)
+        degree_histograms[category] = dict(histogram)
+    fractions = {'inland': land_share * inland_share,
+                 'coastal': land_share * (1 - inland_share), 'sea': 1 - land_share}
+    means = {category: sum(k * v for k, v in histogram.items()) for category, histogram in degree_histograms.items()}
+    global_profile = 'world' if config.wrap_x else name
+    return {'profile': name, 'global_profile': global_profile, 'members': [row['name'] for row in members],
+            'sources': [row['source'] for row in members], 'players': config.players,
+            'baseline_provinces_per_player': density, 'province_count': count,
+            'province_count_override': config.province_count > 0,
+            'inland_baseline': inland_base, 'inland_target': inland_share,
+            'land_province_fraction': land_share, 'category_fractions': fractions,
+            'degree_histograms': degree_histograms, 'degree_means': means,
+            'mean_degree_target': sum(means[k] * fractions[k] for k in fractions),
+            'style_note': ('Peninsula reference selection is a design classification of coastal regional maps, not a vDiplomacy category.'
+                           if config.terrain_style == 'peninsula' else
+                           'Continental/island inland and sea-share adjustments are designed presets, not fitted variant measurements.')}
