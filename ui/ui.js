@@ -37,6 +37,7 @@ const help = {
 const formats = {percent: v => `${Math.round(v * 100)}%`, ratio: v => `${Number(v).toFixed(2)}x`, decimal: v => Number(v).toFixed(2), scale: v => Number(v).toFixed(3)};
 
 async function api(path, data) {
+  if (window.workshopBrowser) return window.workshopBrowser.api(path, data);
   const response = await fetch(path, data === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Workshop-Token': state.token}, body: JSON.stringify(data)});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'The request failed.');
@@ -348,6 +349,6 @@ async function init() {
     const latest = await api('/api/latest');
     if (latest) { applyParameters(latest.parameters); showResult(latest); $('status').textContent = 'Previous map restored. Ready to generate.'; }
     $('settings-fields').disabled = false; $('generate').disabled = false;
-  } catch (error) { showError(error.message); $('status').textContent = 'Could not connect. Start the application with python app.py.'; }
+  } catch (error) { showError(error.message); $('status').textContent = window.workshopBrowser ? 'Could not load the browser engine. Check your connection and reload.' : 'Could not connect. Start the application with python app.py.'; }
 }
 init();

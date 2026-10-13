@@ -1,6 +1,43 @@
-# Random province map generator
+# Diplomacy Map Workshop
 
 Standalone Python 3.10+ application, independent of DiplomacyGM. No pip dependencies.
+
+## Public browser demo
+
+Open **[Diplomacy Map Workshop](https://rl3721.github.io/diplomacy-map-workshop/)**.
+No installation or GitHub account is needed. The Python generator runs on your
+device through Pyodide in a Web Worker, while GitHub Pages hosts the static files.
+The first visit downloads the pinned Pyodide 314.0.7 runtime from jsDelivr;
+an internet connection and a modern browser with WebAssembly are required.
+
+Generate maps, rerun stages, inspect Terrain/Provinces/Powers, and download SVGs,
+settings, statistics and map JSON. Cancel stops generation while preserving the
+previous displayed map; the engine restarts on the next operation. Generation
+speed and practical map size depend on the visitor's device. Start with 5,000 cells.
+Map data stays in this tab's memory and is not uploaded to a generation server.
+Refreshing or closing the tab clears it: download results/settings first.
+Each visitor and tab has an independent session. The demo has no shared gallery,
+accounts, persistent storage or multiplayer adjudication.
+
+### Build and deploy
+
+```powershell
+python build_site.py
+python -m http.server 8000 --bind 127.0.0.1 --directory _site
+```
+
+Open `http://127.0.0.1:8000/`; opening the HTML directly as a file will not work.
+The build copies only the runtime modules/data and UI into ignored `_site/`.
+Relative asset paths support the GitHub Pages repository subdirectory.
+The local `python app.py` application remains available and does not need Pyodide.
+
+The `.github/workflows/pages.yml` workflow tests and builds on pushes to `master`,
+then publishes the artifact to GitHub Pages. Repository Settings -> Pages ->
+Build and deployment must use **GitHub Actions**. The workflow uses the standard
+`GITHUB_TOKEN`; no personal token or secrets belong in the site or repository.
+Keep `web/worker.js`'s Pyodide version pinned; verify generation and reruns before
+updating it. Browser and local execution share `workshop_core.py` configuration,
+validation and rerun rules.
 
 ## High oceans
 
@@ -36,7 +73,8 @@ Run `python high_ocean_study.py` for ten Peninsula maps at 5,000 cells,
 99 source provinces and 0.2 land province share, seeds 1001–1010.
 Open `output/high-ocean-study/index.html` for the inspection gallery.
 Generates a hex-based map through elevation, land/water cleanup, and connected province partitioning.
-It does not place supply centers, powers, units, or impassable areas.
+It also places impassable areas, supply centers and symmetric powers. Starting
+units and asymmetric power assignment are still planned; see [TODO.md](TODO.md).
 
 ## Run
 
