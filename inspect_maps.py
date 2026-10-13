@@ -10,13 +10,13 @@ from generator import Config, generate
 def main():
     output = Path(__file__).parent / 'output'
     samples = [
-        ('profile-default', 'Default peninsula', {}),
+        ('profile-default', 'Default island-like terrain', {}),
         ('division-43', 'Same terrain, division seed 43', {'division_seed': 43}),
         ('small', 'Size ratio 0.8', {'size_ratio': .8}),
         ('large', 'Size ratio 1.2', {'size_ratio': 1.2}),
         ('continental', 'Continental', {'terrain_style': 'continental'}),
-        ('islands', 'Islands', {'terrain_style': 'islands'}),
-        ('wrap', 'Peninsula with horizontal wrap', {'wrap_x': True}),
+        ('peninsula', 'Peninsula', {'terrain_style': 'peninsula'}),
+        ('wrap', 'Island-like terrain with horizontal wrap', {'wrap_x': True}),
     ]
     summaries, cards = [], []
     for folder, title, changes in samples:

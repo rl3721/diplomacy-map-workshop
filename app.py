@@ -15,9 +15,10 @@ from profiles import targets_for
 HELP = {
     'players': 'Base province count follows players (no powers assigned yet)',
     'size_ratio': '0.8 to 1.2 times the variant provinces-per-player baseline',
-    'inland_ratio': '0.8 to 1.2 times the terrain-style inland share',
+    'inland_ratio': '0.8 to 1.2 times the province-style inland share',
     'connectivity_ratio': '0.8 to 1.2 times reference neighbor counts; a soft target',
-    'terrain_style': 'Peninsula is calibrated against coastal regional variants',
+    'terrain_style': 'Elevation preset only; does not change province targets',
+    'province_style': 'Separate province targets; default remains peninsula',
     'reference_profile': 'Auto uses Classic, Ancient Mediterranean and Modern II',
     'division_seed': 'Change province boundaries while preserving terrain',
     'candidates': 'Keep the highest weighted score from 1 to 100 divisions',
@@ -80,8 +81,9 @@ def main():
         variable = tk.StringVar(value=str(getattr(defaults, field.name)))
         variables[field.name] = variable
         ttk.Label(panel, text=field.name.replace('_', ' ').capitalize()).grid(row=row, column=0, sticky='w', pady=5)
-        if field.name in ('terrain_style', 'reference_profile', 'wrap_x'):
+        if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x'):
             values = {'terrain_style': ('peninsula', 'continental', 'islands'),
+                      'province_style': ('peninsula', 'continental', 'islands'),
                       'reference_profile': ('auto', 'classic', 'peninsula', 'world'),
                       'wrap_x': ('False', 'True')}[field.name]
             control = ttk.Combobox(panel, textvariable=variable, values=values, state='readonly', width=16)

@@ -39,7 +39,7 @@ def targets_for(config, province_count=None):
     inland_base = statistics.mean(row['category_counts']['inland'] /
                                   (row['province_count'] - row['category_counts']['sea']) for row in members)
     land_base = statistics.mean(1 - row['category_counts']['sea'] / row['province_count'] for row in members)
-    style = STYLES[config.terrain_style]
+    style = STYLES[config.province_style]
     inland_base = min(1.0, inland_base * style['inland_factor'])
     if style['sea_fraction'] is not None:
         land_base = 1 - style['sea_fraction']
@@ -65,6 +65,7 @@ def targets_for(config, province_count=None):
             'land_province_fraction': land_share, 'category_fractions': fractions,
             'degree_histograms': degree_histograms, 'degree_means': means,
             'mean_degree_target': sum(means[k] * fractions[k] for k in fractions),
+            'province_style': config.province_style,
             'style_note': ('Peninsula reference selection is a design classification of coastal regional maps, not a vDiplomacy category.'
-                           if config.terrain_style == 'peninsula' else
+                           if config.province_style == 'peninsula' else
                            'Continental/island inland and sea-share adjustments are designed presets, not fitted variant measurements.')}

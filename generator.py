@@ -25,7 +25,8 @@ class Config:
     size_ratio: float = 1.0
     inland_ratio: float = 1.0
     connectivity_ratio: float = 1.0
-    terrain_style: str = 'peninsula'
+    terrain_style: str = 'islands'
+    province_style: str = 'peninsula'
     reference_profile: str = 'auto'
     division_seed: int = 42
     candidates: int = 12
@@ -65,14 +66,14 @@ class Config:
                 raise ValueError(f'{name} must be an integer')
         for field in fields(self):
             value = getattr(self, field.name)
-            if field.name in ('terrain_style', 'reference_profile', 'wrap_x'):
+            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x'):
                 continue
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
         if not 1 <= self.hex_count <= 500000:
             raise ValueError('hex_count must be between 1 and 500000')
-        if self.terrain_style not in STYLES or self.reference_profile not in ('auto', 'classic', 'peninsula', 'world'):
-            raise ValueError('Invalid terrain_style or reference_profile')
+        if self.terrain_style not in STYLES or self.province_style not in STYLES or self.reference_profile not in ('auto', 'classic', 'peninsula', 'world'):
+            raise ValueError('Invalid terrain_style, province_style, or reference_profile')
         if type(self.wrap_x) is not bool:
             raise ValueError('wrap_x must be true or false')
         if not 1 <= self.players <= 100 or not 1 <= self.candidates <= 100:
@@ -516,6 +517,22 @@ def write_svg(path, title, grid, labels, colors, province_labels=None):
     path.write_text('\n'.join(lines), encoding='utf-8')
 
 
+def write_terrain_svg(path, grid, heights, terrain, sea_level):
+    """Shared elevation shading for full generation and terrain-only comparisons."""
+    colors = {}
+    for land in (False, True):
+        for band in range(12):
+            t = band / 11
+            a, b = ((31, 74, 111), (147, 204, 218)) if not land else ((199, 217, 155), (65, 106, 73))
+            colors[int(land) * 12 + band] = '#' + ''.join(f'{round(x + (y - x) * t):02x}' for x, y in zip(a, b))
+    labels = []
+    for height, land in zip(heights, terrain):
+        relative = ((height - sea_level) / max(1e-9, 1 - sea_level) if land
+                    else height / max(1e-9, sea_level))
+        labels.append(int(land) * 12 + min(11, max(0, int(relative * 11))))
+    write_svg(path, path.name, grid, labels, colors)
+
+
 def generate(config, output, progress=print):
     config.validate()
     requested = config
@@ -529,20 +546,9 @@ def generate(config, output, progress=print):
     heights, initial, sea_level = elevation(config, grid)
     progress('2/5 Cleaning small terrain components')
     cleaned, flips = clean_terrain(initial, grid, config)
-    # Save intermediates before partition: they remain useful if the requested count is infeasible.
-    colors = {}
-    for land in (False, True):
-        for band in range(12):
-            t = band / 11
-            a, b = ((31, 74, 111), (147, 204, 218)) if not land else ((199, 217, 155), (65, 106, 73))
-            colors[int(land) * 12 + band] = '#' + ''.join(f'{round(x + (y - x) * t):02x}' for x, y in zip(a, b))
+    # Save intermediates even if province allocation later proves infeasible.
     for name, terrain in [('01_elevation.svg', initial), ('02_cleaned.svg', cleaned)]:
-        labels = []
-        for height, land in zip(heights, terrain):
-            relative = ((height - sea_level) / max(1e-9, 1 - sea_level) if land
-                        else height / max(1e-9, sea_level))
-            labels.append(int(land) * 12 + min(11, max(0, int(relative * 11))))
-        write_svg(output / name, name, grid, labels, colors)
+        write_terrain_svg(output / name, grid, heights, terrain, sea_level)
     (output / 'parameters.json').write_text(json.dumps(asdict(requested), indent=2), encoding='utf-8')
     # Prevent previous successful output being mistaken for this failed run.
     for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html'):

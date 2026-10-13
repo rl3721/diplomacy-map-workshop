@@ -5,6 +5,16 @@ from profiles import targets_for
 
 
 class ProfileTests(unittest.TestCase):
+    def test_island_default_preserves_province_targets(self):
+        baseline = targets_for(Config(terrain_style='peninsula'))
+        self.assertEqual(Config().terrain_style, 'islands')
+        self.assertEqual(Config().resolved().land_fraction, .4)
+        for terrain in ('peninsula', 'continental', 'islands'):
+            self.assertEqual(targets_for(Config(terrain_style=terrain)), baseline)
+        self.assertEqual(baseline['province_count'], 99)
+        self.assertAlmostEqual(baseline['inland_target'], .266317920953937, places=4)
+        self.assertNotEqual(targets_for(Config(province_style='islands'))['inland_target'], baseline['inland_target'])
+
     def test_player_scaling_and_overrides(self):
         self.assertEqual(targets_for(Config())['province_count'], 99)
         for players in (5, 7, 10, 20):

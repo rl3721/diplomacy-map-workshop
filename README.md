@@ -28,16 +28,17 @@ The generator replaces its named artifacts in an existing output folder.
 
 ## Player and terrain controls
 
-Default: 7 players, peninsula terrain, three multipliers at 1.0, and 12 candidate divisions.
+Default: 7 players, island-like terrain, peninsula province targets, three multipliers at 1.0, and 12 candidate divisions.
 `players` sets a map-size baseline only; powers and supply centers are not assigned.
 
 | Control | Meaning |
 |---|---|
 | `players` | 1 to 100; province count = round(players * baseline density * size_ratio) |
 | `size_ratio` | 0.8 to 1.2; default density is 14.1 provinces per player |
-| `inland_ratio` | 0.8 to 1.2; multiplies inland provinces / land provinces |
+| `inland_ratio` | 0.8 to 1.2; multiplies the province-profile inland provinces / land provinces target |
 | `connectivity_ratio` | 0.8 to 1.2; multiplies the support of each reference degree distribution |
-| `terrain_style` | peninsula (default), continental, islands |
+| `terrain_style` | islands (default), peninsula, continental; elevation only |
+| `province_style` | peninsula (default), continental, islands; province-composition targets only |
 | `seed` | Terrain seed; coastline stays fixed when division controls change |
 | `division_seed` | Independent province-placement seed |
 | `candidates` | Best weighted score from 1 to 100 connected divisions; default 12 |
@@ -62,7 +63,7 @@ are therefore counted as inland here. Continental and island adjustments are des
 empirical fits to corresponding variant samples. Wrapped global travel comparisons use Imperial II and
 World War IV as a world-map heuristic, not an exact cylindrical-topology calibration.
 
-With all defaults (seed 42), the checked run yields **99 provinces: 19 inland, 56 coastal, 24 sea**
+Before the island-like default change, the peninsula seed-42 run yielded **99 provinces: 19 inland, 56 coastal, 24 sea**
 versus targets of approximately 20/55/24. Composition scores **96.3/100**. Shape-aware generation improves perimeter efficiency; travel structure and sampled size matching remain imperfect. The score does not establish gameplay balance.
 Player scaling preserves fractions and normalizes travel distances; it does not infer a statistically
 fitted nonlinear relationship from this small reference sample.
@@ -242,10 +243,10 @@ Horizontal wrap is now implemented in terrain noise, cleanup, province growth, a
 
 Run `python inspect_maps.py` to generate seven inspection cases under `output/` and a gallery at
 `output/index.html`. Each case contains all three SVG stages, a preview with shape checks, and JSON data.
-The cases cover default peninsula, a different division seed on identical terrain, size ratios 0.8/1.2,
-continental, islands, and horizontal wrap. The script replaces its named files but does not delete other output.
+The cases cover the island-like default, a different division seed on identical terrain, size ratios 0.8/1.2,
+continental, peninsula, and horizontal wrap. The script replaces its named files but does not delete other output.
 
-On the checked default seed-42 run, raw mean perimeter efficiency improved from **0.510 to 0.856**,
+On the earlier peninsula seed-42 shape-comparison run, raw mean perimeter efficiency improved from **0.510 to 0.856**,
 worst-decile efficiency from **0.232 to 0.721**, and minimum from **0.180 to 0.675**.
 The default run has no shape-review flags. Province IDs are reassigned when generation changes, so
 new province 42 is not necessarily the former province 42. Terrain remains unchanged.
@@ -254,3 +255,34 @@ More compact provinces can depart further from their sampled area targets; the s
 that mismatch without discounting the new repair flexibility. Increasing size flexibility permits more
 deviation during repair, while increasing shape regularity discourages unnecessary borders. Coastlines
 and narrow land/water components can still impose irregular regions; the controls do not promise convex shapes.
+
+## Unclassified terrain study
+
+The default terrain preset is now `islands`: initial land fraction 0.40, feature scale 0.09,
+roughness 0.20, and equal horizontal/vertical feature stretch. This is a provisional visual starting
+point pending user classification. `province_style=peninsula` independently retains the previous
+99-province default and the same inland, sea, and degree targets. Setting `terrain_style` no longer
+changes those province targets. To reproduce older continental/islands target behavior explicitly,
+set `province_style` to the corresponding former terrain style.
+
+Run `python terrain_sweep.py` and open `output/terrain-study/index.html`. This produces exactly
+10 numbered groups, five maps per group, and only the cleaned-terrain SVG stage. There are no province
+divisions, supply centers, powers, or classifications. The same five random seeds are reused across
+groups so that each column is a paired comparison. Seed values and full parameters are saved.
+
+Groups increase spatial elevation variation: feature scale decreases geometrically from 0.36 to 0.045,
+and octave roughness increases linearly from 0.10 to 0.70. Both parameters vary, so this is a visual
+exploration rather than an isolated causal experiment. Initial land coverage stays at 40%, cleanup
+thresholds at 180 hexes for land and water, resolution at 50,000 hexes, and wrap is off. Cleanup may
+reduce land coverage and remove small features; final fractions and component counts are shown.
+Simply increasing elevation amplitude would not change the ranked land/water split.
+
+Use IDs such as `G04-M2` to nominate future island, peninsula, and continental examples. The manifest
+records null classifications until those choices are made. The study range and seeds can be adjusted:
+
+```powershell
+python terrain_sweep.py --seed 123 --broad-scale 0.4 --fine-scale 0.06 --smooth 0.1 --rough 0.6 --output output/terrain-study-2
+```
+
+The study stores `02_cleaned.svg` and `parameters.json` for each map, plus a top-level `manifest.json`
+and gallery. Existing province inspection maps are preserved. Generated outputs remain git-ignored.
