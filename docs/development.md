@@ -6,6 +6,17 @@ Work from the repository root with Python 3.10+. Production Python code uses the
 standard library; optional browser checks use Playwright from a development
 environment. No Python package installation is required for normal local use.
 
+## Branches and releases
+
+`master` is the published branch (this repository does not currently use the
+name `main`). `develop-main` is the foundation for ongoing development. Create
+feature branches from `develop-main` and merge reviewed changes back there.
+Release by opening a pull request from `develop-main` into `master`.
+
+CI tests and builds pushes and pull requests for both branches. Only `master`
+can deploy to GitHub Pages, including manual workflow runs. Development builds
+do not replace the public demo. Keep development current with any release fixes.
+
 ## Entry points
 
 ```sh

@@ -1,14 +1,16 @@
 name: Test and deploy browser demo
 on:
   push:
-    branches: [master]
+    branches: [master, develop-main]
+  pull_request:
+    branches: [master, develop-main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: github-pages
+  group: github-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +27,7 @@ jobs:
         with:
           path: _site
   deploy:
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:

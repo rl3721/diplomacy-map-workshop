@@ -14,6 +14,7 @@
 | [Deployment](deployment.md) | Pyodide, static builds and automatic GitHub Pages publishing |
 | [Research and generation studies](research.md) | Variant statistics, historical experiments and selected terrain presets |
 | [Roadmap](roadmap.md) | Prioritized balance improvements, asymmetric powers and victory conditions |
+| [Map review proposal](map-reviews.md) | Proposed ratings, persistent storage, reproducibility and balance analysis |
 | [Design notes](design/README.md) | Original interface concept and visual guidelines |
 
 Commands in these guides assume the repository root is the working directory.

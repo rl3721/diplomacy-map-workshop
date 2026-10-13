@@ -32,8 +32,10 @@ from `web/` into ignored `_site/`, preserving Python package paths.
 Relative asset paths support the GitHub Pages repository subdirectory.
 The local `python -m mapgen.app` application remains available and does not need Pyodide.
 
-The `.github/workflows/pages.yml` workflow tests and builds on pushes to `master`,
-then publishes the artifact to GitHub Pages. Repository Settings -> Pages ->
+The `.github/workflows/pages.yml` workflow tests and builds pushes and pull
+requests for `master` and `develop-main`. Only `master` publishes to GitHub Pages;
+development and pull-request runs cannot deploy. See the
+[branch workflow](development.md#branches-and-releases). Repository Settings -> Pages ->
 Build and deployment must use **GitHub Actions**. The workflow uses the standard
 `GITHUB_TOKEN`; no personal token or secrets belong in the site or repository.
 Keep `web/worker.js`'s Pyodide version pinned; verify generation and reruns before
