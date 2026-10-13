@@ -67,6 +67,16 @@ class PipelineTests(unittest.TestCase):
                 self.assertIsNone(saved)
                 for field in ('seed','division_seed','sc_seed'):
                     self.assertNotEqual(getattr(terrain_config,field),getattr(config,field))
-            for stage, source_id, values in [('power',source.name,{}),('sc','../outside',{}),('sc',source.name,{'global_seed':2})]:
+            with patch.object(workshop, 'start', return_value='job') as start:
+                workshop.rerun({'global_seed':0}, source.name, 'power')
+                power_config, saved, stage = start.call_args.args
+                self.assertEqual(power_config.sc_seed, config.sc_seed)
+                self.assertNotEqual(power_config.power_seed, config.power_seed)
+            with patch('generator.designate', side_effect=AssertionError('SCs reran')), patch('generator.partition', side_effect=AssertionError('Provinces reran')):
+                generate(power_config, Path(root)/'power', lambda _:None, resume=saved, stage=stage)
+            power_result = json.loads((Path(root)/'power/map.json').read_text())
+            self.assertEqual(power_result['supply_centers'], original['supply_centers'])
+            self.assertEqual(power_result['province_ids'], original['province_ids'])
+            for stage, source_id, values in [('invalid',source.name,{}),('sc','../outside',{}),('sc',source.name,{'global_seed':2})]:
                 with self.assertRaises(ValueError):
                     workshop.rerun(values,source_id,stage)

@@ -11,13 +11,13 @@ BASE_CENTERS_PER_PLAYER = 5.2
 
 def center_budget(config):
     """Fixed SC base scaled by the actual source-province ratio, then rounded once."""
-    base_provinces = targets_for(replace(config, province_count=0, size_ratio=1.0))['province_count']
+    base_provinces = targets_for(replace(config, province_count=0, size_ratio=1.0, asymmetric=False))['province_count']
     provinces = targets_for(config)['province_count']
     ratio = provinces / base_provinces
     raw = BASE_CENTERS_PER_PLAYER * config.players * ratio * config.sc_richness
     return {'base_per_player': BASE_CENTERS_PER_PLAYER, 'players': config.players,
             'base_province_count': base_provinces, 'source_province_count': provinces,
-            'province_ratio': ratio, 'richness': config.sc_richness, 'unrounded_count': raw,
+            'province_ratio': ratio, 'capacity_factor': 1.5 if config.asymmetric else 1.0, 'richness': config.sc_richness, 'unrounded_count': raw,
             'count': math.floor(round(raw, 12) + .5) if config.sc_enabled else 0,
             'rounding': 'nearest integer; halves rounded up',
             'formula': '5.2 * players * (source province count / base province count) * richness'}

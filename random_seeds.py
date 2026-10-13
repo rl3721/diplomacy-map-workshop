@@ -7,7 +7,7 @@ def derive_seeds(config):
     if config.global_seed is None:
         return config  # Compatibility with historical CLI configurations.
     result = {}
-    for stage, field in [('terrain', 'seed'), ('province', 'division_seed'), ('sc', 'sc_seed')]:
+    for stage, field in [('terrain', 'seed'), ('province', 'division_seed'), ('sc', 'sc_seed'), ('power', 'power_seed')]:
         override = getattr(config, stage + '_seed_override')
         if override is not None:
             result[field] = override

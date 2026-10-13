@@ -24,6 +24,7 @@ from slot_placement import slot_positions
 from impassable import apply_impassable
 from supply_centers import designate
 from random_seeds import derive_seeds
+from powers import assign_powers
 
 
 @dataclass
@@ -32,6 +33,9 @@ class Config:
     terrain_seed_override: int | None = None
     province_seed_override: int | None = None
     sc_seed_override: int | None = None
+    power_seed_override: int | None = None
+    power_seed: int = 42
+    asymmetric: bool = False
     players: int = 7
     size_ratio: float = 1.0
     inland_ratio: float = 1.0
@@ -82,7 +86,7 @@ class Config:
     shape_tolerance: float = 0.6
 
     def validate(self):
-        for key in ('terrain_seed_override', 'province_seed_override', 'sc_seed_override'):
+        for key in ('terrain_seed_override', 'province_seed_override', 'sc_seed_override', 'power_seed_override'):
             value = getattr(self, key)
             if value is not None and (type(value) is not int or not 0 <= value < 2**31):
                 raise ValueError(f'{key} must be null or an integer between 0 and 2147483647')
@@ -90,14 +94,14 @@ class Config:
             raise ValueError('global_seed must be an integer or null')
         for name in ('hex_count', 'seed', 'min_land_component', 'min_water_component',
                      'province_count', 'repair_passes', 'players', 'division_seed', 'candidates',
-                     'sc_seed', 'sc_iterations'):
+                     'sc_seed', 'power_seed', 'sc_iterations'):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f'{name} must be an integer')
         for field in fields(self):
             value = getattr(self, field.name)
             if field.name.endswith('_seed_override'):
                 continue
-            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology', 'impassable_enabled', 'sc_enabled', 'global_seed'):
+            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology', 'impassable_enabled', 'sc_enabled', 'asymmetric', 'global_seed'):
                 continue
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
@@ -105,6 +109,8 @@ class Config:
             raise ValueError('hex_count must be between 1 and 500000')
         if self.terrain_style not in STYLES or self.province_style not in ('auto', 'peninsula', 'continental', 'islands') or self.reference_profile not in ('auto', 'classic', 'peninsula', 'world'):
             raise ValueError('Invalid terrain_style, province_style, or reference_profile')
+        if type(self.asymmetric) is not bool:
+            raise ValueError('asymmetric must be true or false')
         if type(self.wrap_x) is not bool:
             raise ValueError('wrap_x must be true or false')
         if type(self.impassable_enabled) is not bool:
@@ -579,9 +585,10 @@ def outline_paths(grid, labels):
             for label, rings in outline_polygons(grid, labels).items()}
 
 
-def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=()):
+def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=(), power_owners=None):
     blocked = {pid - 1 for pid in impassable_ids}
     centers = {pid - 1 for pid in supply_center_ids}
+    power_owners = power_owners or {}
     ocean_ids = set()
     if high_oceans:
         ocean_ids = {o['id'] - 1 for o in high_oceans['oceans']}
@@ -634,16 +641,18 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
         if not spherical:
             rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
         # Fit a marker plus number inside a single combined text-sized footprint.
-        for index, (x, y, font) in enumerate(projected_labels(rings, 'SC ' + str(pid + 1))):
+        owner = power_owners.get(pid + 1)
+        center_label = f'{owner}: {pid + 1}' if owner else str(pid + 1)
+        for index, (x, y, font) in enumerate(projected_labels(rings, 'SC ' + center_label)):
             radius = font * .48
-            cx = x - font * (.35 * len(str(pid + 1)) + .45)
+            cx = x - font * (.35 * len(center_label) + .45)
             lines.append(f'<g class="supply-center" data-province="{pid + 1}" id="sc-{pid + 1}-{index}">'
-                         f'<title>Supply center {pid + 1}: unassigned</title>'
+                         f'<title>Supply center {pid + 1}: {html.escape(power_owners.get(pid + 1) or "unassigned")}</title>'
                          f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="white" stroke="#142f36" stroke-width="{font*.12:.6f}"/>'
                          f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius*.35:.6f}" fill="#142f36"/>'
                          f'<text x="{cx + font*.8:.6f}" y="{y:.6f}" dominant-baseline="central" '
                          f'font-family="sans-serif" font-size="{font:.6f}" fill="#102d35" stroke="white" '
-                         f'stroke-width="{font*.12:.6f}" paint-order="stroke">{pid + 1}</text></g>')
+                         f'stroke-width="{font*.12:.6f}" paint-order="stroke">{html.escape(center_label)}</text></g>')
     for pid in sorted(blocked):
         rings = polygons[pid]
         if not spherical:
@@ -718,7 +727,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     grid = (SphereGrid(config.hex_count, config.aspect_ratio) if config.topology == 'sphere'
             else Grid(config.hex_count, config.aspect_ratio, config.wrap_x))
     prior_report = None
-    if resume is not None and stage in ('province', 'sc'):
+    if resume is not None and stage in ('province', 'sc', 'power'):
         resume = Path(resume)
         previous = json.loads((resume / 'map.json').read_text(encoding='utf-8'))
         prior_report = json.loads((resume / 'report.json').read_text(encoding='utf-8'))
@@ -735,9 +744,9 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
         write_terrain_svg(output / name, grid, heights, terrain, sea_level)
     (output / 'parameters.json').write_text(json.dumps(asdict(requested), indent=2), encoding='utf-8')
     # Prevent previous successful output being mistaken for this failed run.
-    for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html', 'generation_failure.json'):
+    for name in ('03_provinces.svg', '04_powers.svg', 'report.json', 'map.json', 'index.html', 'generation_failure.json'):
         (output / name).unlink(missing_ok=True)
-    if prior_report is not None and stage == 'sc':
+    if prior_report is not None and stage in ('sc', 'power'):
         progress('3/5 Reusing saved province division')
         owners = [p - 1 for p in previous['province_ids']]
         report = prior_report
@@ -809,8 +818,10 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
                                           for kind, flag in [('land', True), ('water', False)]}})
     progress('4/5 Designating supply centers')
     report['pipeline'] = {'stage': stage, 'global_seed': config.global_seed,
-                          'stage_seeds': {'terrain': config.seed, 'province': config.division_seed, 'sc': config.sc_seed}}
-    report['supply_centers'] = designate(report['provinces'], report['high_oceans'], config)
+                          'stage_seeds': {'terrain': config.seed, 'province': config.division_seed, 'sc': config.sc_seed, 'power': config.power_seed}}
+    if prior_report is None or stage != 'power':
+        report['supply_centers'] = designate(report['provinces'], report['high_oceans'], config)
+    report['powers'] = assign_powers(report['provinces'], report['high_oceans'], config)
     progress('5/5 Exporting province SVG and preview')
     palette = {}
     rng = random.Random(f'{config.seed}:colors')
@@ -825,6 +836,16 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     report['scoring']['scope'] = 'Original province partition; merged geographical dead ends also invalidate the map. Movement graph is exported separately.'
     write_svg(output / '03_provinces.svg', 'Provinces and named high-ocean slots', grid, owners, palette, True,
               report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'])
+    power_palette = dict(palette)
+    colors = {p['id']: p['color'] for p in report['powers']['players']}
+    for province in report['provinces']:
+        if province.get('owner'):
+            power_palette[province['id'] - 1] = colors[province['owner']]
+        elif province['terrain'] == 'land':
+            power_palette[province['id'] - 1] = '#e0e3db'
+    write_svg(output / '04_powers.svg', 'Power ownership; colored home centers and neutral land', grid, owners, power_palette, True,
+              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'],
+              {p['id']: p.get('owner') for p in report['provinces']})
     report['elapsed_seconds'] = time.perf_counter() - started
     grid_metadata = (grid.metadata() if config.topology == 'sphere' else
                      {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count,
@@ -832,8 +853,8 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     report['grid'] = grid_metadata if config.topology != 'sphere' else {
         k: v for k, v in grid_metadata.items() if k not in ('cell_neighbors', 'cell_longitude_latitude_radians')}
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
-    data = {'schema_version': 9, 'grid': grid_metadata, 'impassable': report['impassable'],
-            'supply_centers': report['supply_centers'], 'pipeline': report['pipeline'],
+    data = {'schema_version': 10, 'grid': grid_metadata, 'impassable': report['impassable'],
+            'powers': report['powers'], 'supply_centers': report['supply_centers'], 'pipeline': report['pipeline'],
             'high_oceans': report['high_oceans'],
             'region_ids': [report['high_oceans']['region_of'][p + 1] for p in owners],
             'elevations': heights, 'initial_land': initial, 'cleaned_land': cleaned,
@@ -885,11 +906,13 @@ Size and shape measure generation quality; other components compare the selected
 <p>Terrain: {config.terrain_style}. Players: {config.players}. Topology: {config.topology}.
 Best of {config.candidates} divisions. References: {html.escape(', '.join(generation_targets['members']))}.</p>
 <p>{html.escape(score_warnings)}</p></section>'''
-    score_panel += f'<section><h2>Supply centers: {sc["count"]}</h2><p>Fixed base 5.2 × {config.players} players × {sc["budget"]["province_ratio"]:.4f} province ratio × {config.sc_richness} richness, rounded to the nearest integer. All centers remain unassigned.</p><p>Placement score: {sc["score"]}. {html.escape(sc["note"])}</p></section>'
+    score_panel += f'<section><h2>Supply centers: {sc["count"]}</h2><p>Fixed base 5.2 × {config.players} players × {sc["budget"]["province_ratio"]:.4f} province ratio × {config.sc_richness} richness, rounded to the nearest integer. Ownership is shown in the Powers map.</p><p>Placement score: {sc["score"]}. {html.escape(sc["note"])}</p></section>'
+    score_panel += '<section><h2>Powers</h2><p>' + html.escape(report['powers']['message']) + '</p>' + ''.join('<p>' + html.escape(f"{p['id']}: starting centers {p['starting_centers']}; victory {p['vscc']}") + '</p>' for p in report['powers']['players']) + '</section>'
     cards = ''.join(f'<section><h2>{title}</h2><a href="{name}">Open SVG</a><img src="{name}" alt="{title}"></section>'
                     for name, title in [('01_elevation.svg', '01 · Elevation / land and water'),
                                         ('02_cleaned.svg', '02 · Small regions cleaned'),
-                                        ('03_provinces.svg', '03 · Connected provinces')])
+                                        ('03_provinces.svg', '03 · Connected provinces'),
+                                        ('04_powers.svg', '04 · Powers')])
     page = f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Province map · seed {config.seed}</title><style>
 body{{font:16px system-ui;background:#edf2f5;color:#18343e;margin:0;padding:32px;max-width:1400px;margin:auto}}

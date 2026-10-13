@@ -1,4 +1,4 @@
-# Map workshop design
+# Diplomacy Map Workshop design
 
 `concept.png` is the full-screen visual concept, generated with the built-in Image Gen tool.
 The interface is implemented as native HTML controls and generated SVG map output, not as a screenshot.
@@ -8,7 +8,7 @@ Segoe UI with system fallbacks, 13px control labels, 23px section headings, 6px 
 a 365px settings sidebar, and a flexible map workspace. Repeated control families are segmented
 buttons, labeled sliders, numeric inputs, checkboxes, disclosures, and optional seed inputs.
 
-Concept brief: a complete local Diplomacy map editor named Map workshop. Header with Load settings,
+Concept brief: a complete local Diplomacy map editor named Diplomacy Map Workshop. Header with Load settings,
 Save settings, Generate map. Separate Terrain and Provinces regions in the left sidebar, with preset
 buttons, sliders, wrap/exact-count checkboxes, advanced controls, and optional independent seeds.
 Main workspace with Elevation, Cleaned terrain, and Provinces tabs, Fit/zoom controls, Download SVG,

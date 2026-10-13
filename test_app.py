@@ -81,7 +81,7 @@ class AppTests(unittest.TestCase):
                     return json.load(response)
 
             try:
-                self.assertIn(b'Map workshop', get('/'))
+                self.assertIn(b'Diplomacy Map Workshop', get('/'))
                 defaults = json.loads(get('/api/config'))
                 self.assertIsNone(defaults['defaults']['global_seed'])
                 self.assertEqual(post('/api/targets', {})['province_count'], 99)

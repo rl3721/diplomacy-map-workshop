@@ -22,7 +22,7 @@ zoom scales all circles together. Each slot is drawn once, including on wrapped 
 SVG metadata records the explicit movement graph. This is a generator SVG,
 not a complete DiplomacyGM variant package with all required layers/configuration.
 
-`map.json` schema 9 preserves original `province_ids` and `provinces` for
+`map.json` schema 10 preserves original `province_ids` and `provinces` for
 partition diagnostics. `region_ids` describes merged geography.
 `high_oceans.locations` is the authoritative movement graph, with string names,
 reciprocal neighbors, region IDs and capacity 1. `high_oceans.regions` describes
@@ -46,7 +46,7 @@ From this directory:
 python app.py
 ```
 
-This opens **Map workshop** at `http://127.0.0.1:8765` in your browser. Generation runs locally
+This opens **Diplomacy Map Workshop** at `http://127.0.0.1:8765` in your browser. Generation runs locally
 in a background thread; no internet connection or extra Python packages are required. You can also
 double-click `Start Map Workshop.cmd` on Windows. Keep the terminal open while using the app.
 Use `python app.py --port 8766` if the default port is occupied, or `--no-open` to start without
@@ -120,7 +120,7 @@ An incompatible count produces an explanatory error. SVG edges are the cut in a 
 
 ## Spherical maps
 
-In Map workshop, select **Terrain → Map topology → Sphere**. All three preview stages
+In Diplomacy Map Workshop, select **Terrain → Map topology → Sphere**. All three preview stages
 remain rectangular. From the command line:
 
 ```powershell
@@ -410,7 +410,7 @@ The script uses three worker processes by default (`--workers 1` runs sequential
 incrementally updated gallery, and does not delete unrelated output. The old output was explicitly
 cleared for the user-requested regeneration. Generated files remain git-ignored.
 
-## Map workshop interface
+## Diplomacy Map Workshop interface
 
 - **Terrain:** Continental / Peninsula / Islands / Custom buttons, always-visible land coverage,
   feature scale and elevation detail sliders, and topology. Dragging any terrain slider selects Custom
@@ -518,7 +518,7 @@ coastal preference (0-2), distribution (0-1), optional SC seed, and placement
 iterations (1-100). Starting/neutral budget controls are removed. Historical
 sc_starting_per_player and sc_neutral_per_player fields are ignored when loading
 old UI or CLI JSON settings. An API request to set sc_base_per_player is rejected.
-Centers remain unassigned; home and neutral designation belongs to a later stage.
+Centers are placed first; symmetric power assignment then designates starting home centers.
 
 Only passable land is eligible, with at most one center per province. A budget
 larger than eligible land produces an explicit error, never a silently reduced
@@ -536,17 +536,16 @@ test. Distribution 0 favors nearby centers and 1 favors wider separation.
 Coastal preference scales the eligible coastal-land share, subject to feasibility.
 
 SC SVG markers are outlined circles with central dots beside province numbers.
-All centers remain unassigned: supply_center is true, home_power and owner are
-null. map.json schema 9 and report.json export supply_centers, including chosen
+SC placement initially leaves centers unassigned. The subsequent symmetric power stage sets owner, home_power and core on its starting centers. map.json schema 10 and report.json export supply_centers, including chosen
 IDs, the complete budget formula and factors, seed, component scores, candidate
 scores, and regional allocation. The structural map score is unchanged by SC
-settings. Power assignment and initial armies/fleets remain unimplemented.
+settings. Symmetric power assignment follows SC placement. Initial armies/fleets and asymmetric power assignment remain unimplemented.
 
 
 ## Global seed and pipeline reruns
 
 The first sidebar control is now **Global seed**. The workshop derives stable,
-independent terrain, province and SC seeds from that integer and stage names.
+independent terrain, province, SC and power seeds from that integer and stage names.
 A global seed determines the initial stage seeds. Stage reruns instead choose
 fresh random seeds for the selected stage and every downstream stage. Earlier
 stages keep their saved seeds and generated data.
@@ -557,12 +556,13 @@ also captures that actual seed when the input is blank. Change the global seed
 and use Generate map to create a different random map.
 
 The dropdown beside Generate map selects **Terrain onward**, **Provinces onward**,
-**Supply centers**, or disabled **Power (coming later)**. Click Rerun to recompute:
+**Supply centers onward**, or **Powers**. Click Rerun to recompute:
 
 - Terrain: randomize all stages with current settings.
 - Provinces: reuse saved elevation and cleaned terrain, then rebuild provinces,
   high oceans, impassables and supply centers.
-- Supply centers: reuse saved terrain and provinces and replace only SC designation.
+- Supply centers: reuse saved terrain and provinces, replace SC designation and rerun powers.
+- Powers: preserve terrain, provinces and SC locations; randomize only power assignment.
 
 A rerun keeps the source map's earlier-stage settings; pending changes to those
 settings are discarded and the sidebar restores the settings actually used.
@@ -573,10 +573,52 @@ seed and settings are unchanged. Reruns are available after the first
 successful map using a global seed; historical maps need full regeneration first.
 
 The /api/rerun endpoint accepts parameters, source_id and stage (terrain,
-province or sc). map.json schema 9 includes pipeline stage and actual stage seeds.
+province, sc or power). map.json schema 10 includes pipeline stage and actual stage seeds.
 Saved settings include hidden terrain_seed_override, province_seed_override and
-sc_seed_override fields. Load those settings and use Generate map to replay a
+sc_seed_override and power_seed_override fields. Load those settings and use Generate map to replay a
 rerun result; its global seed alone is insufficient. Changing or clearing the
 global seed in the UI clears these overrides. Old internal seed fields remain
 readable for compatibility. CLI supports
 --global-seed. Python callers without a global seed retain historical seed behavior.
+
+
+## Symmetric powers and asymmetric capacity
+
+See [TODO.md](TODO.md) for the balance-design and asymmetric-setup roadmap.
+
+The Province section's Asymmetric checkbox defaults off. Turning it on multiplies
+the player-based province capacity by 1.5, on top of the existing size ratio.
+The displayed/explicit province_count remains the final count, rounded to whole
+provinces; it is never multiplied a second time. Hex resolution and terrain do
+not change. Apply this setting by generating or rerunning from Provinces onward.
+SC budgeting divides this final province count by the original symmetric base,
+so the capacity increase is included exactly once. At seven players and normal
+size/richness: symmetric = 99 provinces / 36 SCs; asymmetric = 149 / 55.
+
+Symmetric powers receive exactly three starting SCs, all owned home cores.
+Every power must have at least one coastal starting SC with a water neighbor in
+the playable movement graph. Entirely landlocked starting groups are rejected.
+Exports record each power's coastal_starting_centers. If there are too few coastal
+SCs or no complete valid assignment, the map is preserved with an explanation.
+Other SCs remain neutral; no additional precores or starting units are assigned.
+Victory is floor(total SCs / 2) + 1. Starting centers need not touch or belong
+to a connected landmass. For EACH starting center there must be a single unit
+type (army OR fleet) that can reach BOTH other centers in at most two moves.
+Different origins may use different types. Paths ignore occupancy and do not
+use convoys. Armies use passable land; fleets use water and coastal provinces,
+with coastal-to-coastal edges requiring a shared sea neighbor. This is the
+generator's unsplit-coast model; split-coast adjudicator export is not provided.
+Wrap, sphere, impassables and named high-ocean slots use the saved movement graph.
+
+The allocator searches disjoint valid triples, favoring separation between powers
+and comparable nearby neutral access. These preferences are heuristics, not a
+claim of gameplay balance. An insufficient SC budget, an immediate starting
+victory, or failure to find a full assignment leaves the map intact and reports
+why; no partial powers are exported. SCs can be rerun to find another layout.
+
+The Powers preview and 04_powers.svg color each power's home SCs and label them
+with P1, P2, etc. Neutral land is gray. map.json/report.json export power IDs,
+colors, iscc=3, majority vscc, owner/core fields, and witness routes for the hard
+two-move rule. Power-only reruns preserve all previous stages and save a fresh
+power seed. In asymmetric mode, the map and SCs generate normally and the Powers
+panel says 'Asymmetric power allocation: to be implemented.'

@@ -41,7 +41,10 @@ def targets_for(config, province_count=None):
     name = profile_name(config)
     members = reference_members(name)
     density = statistics.median(row['province_count'] / row['players'] for row in members)
-    count = province_count or config.province_count or max(1, round(config.players * density * config.size_ratio))
+    capacity = 1.5 if config.asymmetric else 1.0
+    automatic = (int(round(config.players * density) * config.size_ratio * capacity + .5) if config.asymmetric
+                 else round(config.players * density * config.size_ratio))
+    count = province_count or config.province_count or max(1, automatic)
     inland_base = statistics.mean(row['category_counts']['inland'] /
                                   (row['province_count'] - row['category_counts']['sea']) for row in members)
     land_base = statistics.mean(1 - row['category_counts']['sea'] / row['province_count'] for row in members)
@@ -66,7 +69,7 @@ def targets_for(config, province_count=None):
     global_profile = 'world' if config.effective_topology != 'flat' else name
     return {'profile': name, 'global_profile': global_profile, 'members': [row['name'] for row in members],
             'sources': [row['source'] for row in members], 'players': config.players,
-            'baseline_provinces_per_player': density, 'province_count': count,
+            'capacity_factor': capacity, 'baseline_provinces_per_player': density, 'province_count': count,
             'province_count_override': config.province_count > 0,
             'inland_baseline': inland_base, 'inland_target': inland_share,
             'land_province_fraction': land_share, 'category_fractions': fractions,

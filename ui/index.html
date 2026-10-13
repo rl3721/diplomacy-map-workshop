@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Map workshop</title><link rel="stylesheet" href="/style.css"><script src="/ui.js" defer></script>
+  <title>Diplomacy Map Workshop</title><link rel="stylesheet" href="/style.css"><script src="/ui.js" defer></script>
   <link rel="icon" href="data:,">
 </head>
 <body>
   <header class="app-header">
-    <h1><svg viewBox="0 0 32 36" aria-hidden="true"><path d="M16 2 30 10v16L16 34 2 26V10Z"/></svg>Map workshop</h1>
+    <h1><svg viewBox="0 0 32 36" aria-hidden="true"><path d="M16 2 30 10v16L16 34 2 26V10Z"/></svg>Diplomacy Map Workshop</h1>
     <div class="header-actions">
       <button id="load-settings">Load settings</button><button id="save-settings">Save settings</button>
       <button id="generate" class="primary" disabled>Generate map</button>
       <div class="rerun-actions"><label for="rerun-stage" class="sr-only">Rerun from stage</label>
-      <select id="rerun-stage" disabled><option value="terrain">Terrain onward</option><option value="province">Provinces onward</option><option value="sc">Supply centers</option><option value="power" disabled>Power (coming later)</option></select>
+      <select id="rerun-stage" disabled><option value="terrain">Terrain onward</option><option value="province">Provinces onward</option><option value="sc">Supply centers onward</option><option value="power">Powers</option></select>
       <button id="rerun" disabled>Rerun</button></div>
       <input id="settings-file" type="file" accept=".json,application/json" hidden>
     </div>
@@ -42,7 +42,7 @@
           </section>
           <section class="settings-section" aria-labelledby="province-heading">
             <h2 id="province-heading">Provinces</h2>
-            <div id="province-sliders"></div>
+            <label class="compact-field" for="asymmetric">Asymmetric<input id="asymmetric" type="checkbox"></label><p class="hint">1.5x province capacity and corresponding SC budget. Asymmetric power assignment is to be implemented.</p><div id="province-sliders"></div>
             <p id="target-summary" class="target-summary">Target: 99 provinces</p>
             <details><summary>Advanced provinces</summary><div id="province-advanced" class="advanced-fields"></div></details>
             <button id="reset" class="text-button" type="button">Reset settings</button>
@@ -61,7 +61,7 @@
         <div class="preview-toolbar">
           <div class="segments stages" role="tablist" aria-label="Preview stage">
             <button role="tab" aria-selected="false" data-stage="02_cleaned.svg" disabled>Terrain</button>
-            <button role="tab" aria-selected="true" data-stage="03_provinces.svg" disabled>Provinces</button>
+            <button role="tab" aria-selected="true" data-stage="03_provinces.svg" disabled>Provinces</button><button role="tab" aria-selected="false" data-stage="04_powers.svg" disabled>Powers</button>
           </div>
           <div class="preview-actions">
             <button id="fit" disabled>Fit</button>
@@ -76,11 +76,11 @@
         <div class="map-stats" aria-live="polite"><div id="map-stats">Your map will appear here.</div><button id="details-button" class="text-button" disabled>Details</button></div>
       </section>
       <div class="future-panels">
-        <section aria-labelledby="powers-heading"><h2 id="powers-heading">Powers</h2><div><strong>Coming later</strong><p>Starting positions and assignments.</p></div></section>
+        <section aria-labelledby="powers-heading"><h2 id="powers-heading">Powers</h2><div id="power-summary"><p>Symmetric: three regional starting centers per player, including at least one coastal center. From each, an army or fleet can reach both others within two moves. Victory requires more than half of all SCs.</p></div></section>
       </div>
     </div>
   </main>
-  <footer class="status-bar"><div id="status" role="status" aria-live="polite">Connecting to Map workshop…</div><span id="seed-status">Seeds are saved with each map.</span><progress id="progress" max="1" value="0" hidden aria-label="Generation progress"></progress></footer>
+  <footer class="status-bar"><div id="status" role="status" aria-live="polite">Connecting to Diplomacy Map Workshop…</div><span id="seed-status">Seeds are saved with each map.</span><progress id="progress" max="1" value="0" hidden aria-label="Generation progress"></progress></footer>
   <div id="error" class="error-message" role="alert" hidden></div>
   <div id="parameter-tooltip" role="tooltip" hidden></div>
   <dialog id="details-dialog"><div class="dialog-heading"><h2>Map details</h2><button id="close-details" aria-label="Close map details">Close</button></div><div id="details-content"></div></dialog>
