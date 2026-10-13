@@ -13,7 +13,7 @@ class ConnectivityPolicyTests(unittest.TestCase):
         provinces = [{'id': pid, 'neighbors': neighbors, 'category': 'sea', 'terrain': 'water',
                       'hex_count': 100, 'target_hex_count': 100} for pid, neighbors in graph.items()]
         return score_map(provinces, [1.] * len(provinces),
-                         Config(weight_degree=0, weight_composition=0, weight_global=0,
+                         Config(sc_enabled=False, weight_degree=0, weight_composition=0, weight_global=0,
                                 weight_shape=0, weight_size=100))
 
     def test_degree_one_is_illegal_even_with_connectivity_weight_zero(self):
@@ -40,7 +40,7 @@ class ConnectivityPolicyTests(unittest.TestCase):
         self.assertEqual(result['one_neighbor_province_ids'], [1])
 
     def test_illegal_measure_is_distinct_from_valid_geometry(self):
-        result = measure([0, 1], [True, True], Grid(2, 1), [1, 1], Config(province_count=2))
+        result = measure([0, 1], [True, True], Grid(2, 1), [1, 1], Config(sc_enabled=False, province_count=2))
         self.assertTrue(result['structurally_valid'])
         self.assertFalse(result['valid'])
         self.assertEqual(result['scoring']['total'], 0)
@@ -51,7 +51,7 @@ class ConnectivityPolicyTests(unittest.TestCase):
             for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html'):
                 (path / name).write_text('previous stale output')
             with self.assertRaisesRegex(ValueError, 'No legal province layout'):
-                generate(Config(hex_count=60, province_count=2, land_fraction=1, candidates=3), path, lambda _: None)
+                generate(Config(sc_enabled=False, hex_count=60, province_count=2, land_fraction=1, candidates=3), path, lambda _: None)
             failure = json.loads((path / 'generation_failure.json').read_text())
             self.assertEqual(failure['candidate_scores'], [0, 0, 0])
             self.assertEqual(len(failure['rejected_candidates']), 3)
@@ -72,7 +72,7 @@ class ConnectivityPolicyTests(unittest.TestCase):
             call += 1
             return result
         with tempfile.TemporaryDirectory() as folder, patch('generator.measure', side_effect=forced_measure):
-            report = generate(Config(hex_count=97, province_count=1, land_fraction=1, candidates=2), folder, lambda _: None)
+            report = generate(Config(sc_enabled=False, hex_count=97, province_count=1, land_fraction=1, candidates=2), folder, lambda _: None)
             self.assertEqual(report['selected_candidate'], 1)
             self.assertEqual(len(report['rejected_candidates']), 1)
 

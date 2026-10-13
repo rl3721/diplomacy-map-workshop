@@ -6,3 +6,5 @@
 .field{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;margin:12px 0 6px}.field select{max-width:190px}.hint{color:var(--muted);font-size:12px;line-height:1.5}
 .count-input{display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:12px;align-items:center}.count-input input[type=number]{width:76px}.count-input+p{margin-top:6px}#terrain-presets button{padding-inline:7px;font-size:12px}.has-help{cursor:help;text-decoration:underline dotted #9aa9a4;text-underline-offset:4px}#parameter-tooltip{position:fixed;z-index:1000;width:330px;max-width:calc(100vw - 16px);padding:12px 14px;background:#203d37;color:white;border-radius:6px;box-shadow:0 4px 20px #0003;font-size:13px;line-height:1.55;pointer-events:none}
 @media(prefers-reduced-motion:no-preference){button,a.button{transition:background .12s ease}progress{transition:value .2s}}
+
+.rerun-actions{display:flex;gap:6px;align-items:center}.rerun-actions select{min-height:36px;width:auto;max-width:170px}.header-actions{flex-wrap:wrap}@media(max-width:760px){.rerun-actions{width:100%}.rerun-actions select{flex:1;max-width:none}}

@@ -6,13 +6,11 @@
   "terrain_style": "peninsula",
   "province_style": "auto",
   "reference_profile": "auto",
-  "division_seed": 42,
   "candidates": 12,
   "wrap_x": false,
   "topology": "auto",
   "hex_count": 5000,
   "aspect_ratio": 1.5,
-  "seed": 42,
   "land_fraction": -1.0,
   "landmass_scale": -1.0,
   "roughness": -1.0,
@@ -38,5 +36,11 @@
   "fragmentation_tolerance": 0.25,
   "bottleneck_tolerance": 0.15,
   "size_tolerance": 0.4054651081081644,
-  "shape_tolerance": 0.6
+  "shape_tolerance": 0.6,
+  "sc_enabled": true,
+  "sc_richness": 1,
+  "sc_coastal_preference": 1,
+  "sc_distribution": 0.7,
+  "sc_iterations": 24,
+  "global_seed": 42
 }

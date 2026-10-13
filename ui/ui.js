@@ -4,6 +4,12 @@ const state = {defaults: null, presets: null, parameters: {}, token: '', result:
 const controls = new Map();
 const terrainKeys = ['land_fraction', 'landmass_scale', 'roughness'];
 const help = {
+  sc_enabled: 'Place unassigned supply centers on passable land. Disable for province-only generation. Centers do not yet belong to powers.',
+  sc_richness: 'Scales the full supply-center budget: fixed base 5.2 × players × actual province-count ratio × richness. Rounded once to the nearest integer, with halves rounded up. Defaults to 1.0; range 0.8–1.2. The base cannot be edited.',
+  sc_coastal_preference: 'Multiplies the eligible coastal-land share to set a soft coastal-center target. 1.0 is proportional placement, 0 favors inland, 2 favors coasts. Feasibility limits are applied.',
+  sc_distribution: '0 favors clusters of nearby centers; 1 favors greater separation. Uses shortest paths through passable land, with sea access evaluated separately. Adjacent centers remain allowed.',
+  global_seed: 'Master seed for all stages. Terrain, province and SC seeds are derived automatically. Blank creates a random master seed for Generate map. Rerun generates fresh seeds for the selected stage and all later stages, preserving earlier stages. The actual stage seeds are saved with settings so a rerun result can be reproduced.',
+  sc_iterations: 'Number of SC placements compared using spacing (40%), regional distribution (30%), coastal mix (20%) and accessibility (10%). This does not measure balance between players yet.',
   impassable_enabled: 'Mark the highest land provinces as black impassable areas. Ranking uses average elevation across each province. Impassable areas cannot be entered, occupied, or crossed. Layouts with disconnected playable regions or dead ends are rejected.',
   impassable_ratio: 'Share of land provinces made impassable, rounded down. Default 2% means one per 50 land provinces: 74 gives one, 100 gives two, fewer than 50 gives none. Zero also disables placement.',
   land_fraction: 'Fraction of the initial map area assigned to land. Cleanup can slightly change the final percentage. This is different from the number of land provinces.',
@@ -25,8 +31,7 @@ const help = {
   size_variation: 'Spread of sampled province-size targets. Zero requests similar sizes within each terrain component. Larger values produce a wider mixture of small and large targets. Actual sizes may differ.',
   compactness: 'Controls small random variations in growth cost. Higher values reduce growth noise. Shape regularity is the stronger control for avoiding long extensions.',
   repair_passes: 'Maximum rounds of boundary adjustments after growth. Repair balances size and shape while preserving connectivity. It stops early if there are no useful changes. Zero skips repair.',
-  seed: 'Optional terrain seed. Blank generates a new random seed each time. Fix this seed and the terrain settings to keep the terrain while exploring province divisions.',
-  division_seed: 'Optional province seed. Change it to try another division of the same terrain. Fix both seeds and all settings to reproduce a map within this generator version.'
+
 };
 const formats = {percent: v => `${Math.round(v * 100)}%`, ratio: v => `${Number(v).toFixed(2)}x`, decimal: v => Number(v).toFixed(2), scale: v => Number(v).toFixed(3)};
 
@@ -116,9 +121,15 @@ function buildControls() {
   controls.set('impassable_enabled', value => { $('impassable_enabled').checked = value; });
   $('impassable_enabled').addEventListener('change', () => { state.parameters.impassable_enabled = $('impassable_enabled').checked; changed(); });
   rangeField($('province-advanced'), 'impassable_ratio', 'Impassable land share', 0, 1, .01, 'percent');
-  for (const [key, parent] of [['seed', 'terrain-advanced'], ['division_seed', 'province-advanced']]) {
-    $(parent).append(document.querySelector(`label[for="${key}"]`), $(key));
-  }
+  const scToggle = document.createElement('div'); scToggle.className = 'compact-field';
+  scToggle.innerHTML = '<label for="sc_enabled">Place supply centers</label><input id="sc_enabled" type="checkbox" style="width:auto;justify-self:start">';
+  $('sc-controls').append(scToggle);
+  controls.set('sc_enabled', value => { $('sc_enabled').checked = value; });
+  $('sc_enabled').addEventListener('change', () => { state.parameters.sc_enabled = $('sc_enabled').checked; changed(); });
+  rangeField($('sc-controls'), 'sc_richness', 'Richness', .8, 1.2, .01, 'ratio');
+  rangeField($('sc-controls'), 'sc_coastal_preference', 'Coastal preference', 0, 2, .05, 'ratio');
+  rangeField($('sc-controls'), 'sc_distribution', 'Distribution', 0, 1, .05, 'decimal');
+  numberField($('sc-controls'), 'sc_iterations', 'Placement iterations', 1, 100);
   installHelp();
 }
 function syncProvinceCount(explicit) {
@@ -153,6 +164,8 @@ function installHelp() {
 }
 function applyParameters(parameters) {
   state.parameters = {...state.defaults, ...parameters};
+  delete state.parameters.sc_starting_per_player;
+  delete state.parameters.sc_neutral_per_player;
   for (const key of Object.keys(state.defaults)) if (key.startsWith('weight_') || key.endsWith('_tolerance') || ['province_style', 'reference_profile'].includes(key)) state.parameters[key] = state.defaults[key];
   for (const kind of ['land', 'water']) {
     if (parameters[`min_${kind}_component`] >= 0) state.parameters[`min_${kind}_fraction`] = Math.min(1, parameters[`min_${kind}_component`] / state.parameters.hex_count);
@@ -166,16 +179,15 @@ function applyParameters(parameters) {
   $('topology').value = state.parameters.topology === 'auto' ? (state.parameters.wrap_x ? 'cylinder' : 'flat') : state.parameters.topology;
   topologyHint();
   syncProvinceCount(state.parameters.province_count > 0 ? state.parameters.province_count : undefined);
-  for (const key of ['seed', 'division_seed']) $(key).value = state.parameters[key] ?? '';
+  $('global_seed').value = state.parameters.global_seed ?? '';
   refreshTargets();
 }
 function parameters() {
   const values = {...state.parameters};
-  for (const key of ['seed', 'division_seed']) {
-    const text = $(key).value.trim();
-    if (text && (!/^[+-]?\d+$/.test(text) || !Number.isSafeInteger(Number(text)))) throw new Error(`${key === 'seed' ? 'Terrain' : 'Province'} seed must be a whole number, or blank for random.`);
-    values[key] = text ? Number(text) : null;
-  }
+  const text = $('global_seed').value.trim();
+  if (text && (!/^[+-]?\d+$/.test(text) || !Number.isSafeInteger(Number(text)))) throw new Error('Global seed must be a whole number, or blank for random.');
+  values.global_seed = text ? Number(text) : null;
+  if (values.global_seed !== state.parameters.global_seed) for (const key of ['terrain_seed_override', 'province_seed_override', 'sc_seed_override']) values[key] = null;
   return values;
 }
 function topologyHint() {
@@ -188,6 +200,8 @@ function refreshTargets() {
     try {
       const target = await api('/api/targets', parameters());
       if (request !== state.targetRequest) return;
+      const budget = target.supply_center_budget;
+      $('sc-budget').textContent = state.parameters.sc_enabled ? `${budget.count} centers: 5.2 × ${budget.players} players × ${budget.province_ratio.toFixed(3)} province ratio × ${budget.richness.toFixed(2)} richness` : 'Supply-center placement disabled';
       $('target-summary').textContent = `Target: ${(target.inland_target * 100).toFixed(1)}% landlocked land provinces · ${target.mean_degree_target.toFixed(2)} neighbors`;
     } catch (error) { if (request === state.targetRequest) $('target-summary').textContent = error.message; }
   }, 160);
@@ -195,6 +209,7 @@ function refreshTargets() {
 function busy(value) {
   state.busy = value; $('settings-fields').disabled = value;
   for (const id of ['generate', 'load-settings', 'save-settings']) $(id).disabled = value;
+  $('rerun').disabled = $('rerun-stage').disabled = value || !state.result || state.result.parameters.global_seed == null;
   $('generate').textContent = value ? 'Generating…' : 'Generate map'; $('progress').hidden = !value;
 }
 function layoutImage() {
@@ -222,12 +237,13 @@ function showResult(result) {
   for (const id of ['fit', 'zoom-out', 'zoom-in', 'details-button']) $(id).disabled = false;
   $('download-svg').classList.remove('disabled'); $('download-svg').setAttribute('aria-disabled', 'false');
   const counts = result.categories;
-  $('map-stats').replaceChildren(...[`${result.province_count} source provinces`, `${result.playable_location_count ?? result.province_count} playable`, `${result.impassable_count ?? 0} impassable`, `${counts.inland + counts.coastal} land`, `${counts.sea} sea`, `Score ${result.scoring.total.toFixed(1)}`].map(text => { const span = document.createElement('span'); span.textContent = text; return span; }));
-  $('seed-status').textContent = `Terrain seed ${result.parameters.seed} · Province seed ${result.parameters.division_seed}`;
+  $('map-stats').replaceChildren(...[`${result.province_count} source provinces`, `${result.playable_location_count ?? result.province_count} playable`, `${result.supply_centers?.count ?? 0} SCs`, `${result.impassable_count ?? 0} impassable`, `${counts.inland + counts.coastal} land`, `${counts.sea} sea`, `Score ${result.scoring.total.toFixed(1)}`].map(text => { const span = document.createElement('span'); span.textContent = text; return span; }));
+  $('seed-status').textContent = `Global seed ${result.parameters.global_seed ?? 'legacy'}`;
+  $('rerun').disabled = $('rerun-stage').disabled = state.busy || result.parameters.global_seed == null;
   $('status').textContent = `Map ready · ${result.elapsed_seconds.toFixed(1)} seconds`;
   setStage(state.stage);
 }
-async function generateMap() {
+async function generateMap(rerun = false) {
   if (state.busy) return;
   showError('');
   try {
@@ -238,9 +254,10 @@ async function generateMap() {
       invalid.reportValidity(); return;
     }
     const config = parameters();
-    await api('/api/targets', config);
-    busy(true); $('status').textContent = 'Starting map generation'; $('progress').value = 0;
-    const {id} = await api('/api/generate', config);
+    const seedInput = $('global_seed').value;
+    busy(true);
+    if (!rerun) await api('/api/targets', config); $('status').textContent = 'Starting map generation'; $('progress').value = 0;
+    const {id} = rerun ? await api('/api/rerun', {parameters: config, source_id: state.result.id, stage: $('rerun-stage').value}) : await api('/api/generate', config);
     let failures = 0;
     for (;;) {
       await new Promise(resolve => setTimeout(resolve, 450));
@@ -249,7 +266,13 @@ async function generateMap() {
       catch (error) { if (++failures >= 5) throw error; continue; }
       $('status').textContent = job.message; $('progress').value = job.progress;
       if (job.state === 'error') throw new Error(job.message);
-      if (job.state === 'complete') { showResult(job); break; }
+      if (job.state === 'complete') {
+        if (rerun) {
+          applyParameters(job.parameters);
+          $('global_seed').value = seedInput;
+        }
+        showResult(job); break;
+      }
     }
   } catch (error) { showError(error.message); $('status').textContent = state.result ? 'Generation failed. Previous map retained.' : 'Generation could not finish.'; }
   finally { busy(false); }
@@ -273,6 +296,7 @@ function showDetails() {
     note.textContent = `Weighted subtotal ${r.scoring.weighted_total.toFixed(2)} − two-neighbor penalty ${policy.penalty_points.toFixed(2)} = final score ${r.scoring.total.toFixed(2)}. Two-neighbor provinces: ${policy.two_neighbor_province_ids.join(', ') || 'none'}. One-neighbor layouts are illegal and rejected.`;
     container.append(note);
   }
+  if (r.supply_centers) { const sc = r.supply_centers, p = document.createElement('p'); const budget = sc.budget ? `Fixed base 5.2 × ${sc.budget.players} players × ${sc.budget.province_ratio.toFixed(3)} province ratio × ${sc.budget.richness.toFixed(2)} richness.` : 'Historical placement; regenerate to use the fixed 5.2 base.'; p.textContent = `${sc.count} unassigned supply centers. ${budget} Placement score: ${sc.score === null ? 'disabled / empty' : sc.score.toFixed(1)}. ${sc.note}`; container.append(p); }
   const shape = r.scoring.shape;
   for (const text of [`${r.categories.inland} inland, ${r.categories.coastal} coastal, ${r.categories.sea} sea provinces. Mean neighbors: ${r.degree.mean.toFixed(2)}.`, `Perimeter efficiency: ${shape.mean_perimeter_efficiency.toFixed(2)} average, ${shape.min_perimeter_efficiency.toFixed(2)} minimum. Shape-review provinces: ${shape.flagged_province_ids.join(', ') || 'none'}.`, 'Scores describe map structure, not gameplay balance.', ...r.scoring.warnings]) { const p = document.createElement('p'); p.textContent = text; container.append(p); }
   const links = document.createElement('p'); links.className = 'download-links';
@@ -286,8 +310,8 @@ async function init() {
     $('status').textContent = 'Ready to generate';
     document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => { try { if (button.dataset.preset === 'custom') selectCustom(); else applyParameters({...parameters(), terrain_style: button.dataset.preset, land_fraction: -1, landmass_scale: -1, roughness: -1}); changed(); } catch (error) { showError(error.message); } }));
     $('topology').addEventListener('change', () => { state.parameters.topology = $('topology').value; state.parameters.wrap_x = $('topology').value !== 'flat'; topologyHint(); changed(); });
-    for (const key of ['seed', 'division_seed']) $(key).addEventListener('input', changed);
-    $('generate').addEventListener('click', generateMap); $('settings-form').addEventListener('submit', event => { event.preventDefault(); generateMap(); });
+    $('global_seed').addEventListener('input', changed);
+    $('generate').addEventListener('click', () => generateMap()); $('rerun').addEventListener('click', () => generateMap(true)); $('settings-form').addEventListener('submit', event => { event.preventDefault(); generateMap(); });
     $('reset').addEventListener('click', () => { applyParameters(state.defaults); changed(); });
     document.querySelectorAll('[data-stage]').forEach(button => {
       button.addEventListener('click', () => setStage(button.dataset.stage));
@@ -307,7 +331,7 @@ async function init() {
     $('zoom-out').addEventListener('click', () => { state.zoom = Math.max(.5, state.zoom - .25); layoutImage(); });
     $('details-button').addEventListener('click', showDetails); $('close-details').addEventListener('click', () => $('details-dialog').close());
     $('load-settings').addEventListener('click', () => $('settings-file').click());
-    $('save-settings').addEventListener('click', async () => { try { const values = parameters(); await api('/api/targets', values); downloadJSON(values, 'map-settings.json'); } catch (error) { showError(error.message); } });
+    $('save-settings').addEventListener('click', async () => { try { const values = parameters(); if (values.global_seed === null && state.result?.parameters.global_seed != null) { values.global_seed = state.result.parameters.global_seed; for (const key of ['terrain_seed_override', 'province_seed_override', 'sc_seed_override']) values[key] = state.result.parameters[key] ?? null; } await api('/api/targets', values); downloadJSON(values, 'map-settings.json'); } catch (error) { showError(error.message); } });
     $('settings-file').addEventListener('change', async event => {
       const file = event.target.files[0]; if (!file) return;
       try { if (file.size > 65536) throw new Error('The parameter file is too large.'); const values = JSON.parse(await file.text()); await api('/api/targets', values); applyParameters(values); changed(); $('status').textContent = 'Settings loaded. Generate to preview them.'; }

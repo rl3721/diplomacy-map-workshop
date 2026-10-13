@@ -22,7 +22,7 @@ zoom scales all circles together. Each slot is drawn once, including on wrapped 
 SVG metadata records the explicit movement graph. This is a generator SVG,
 not a complete DiplomacyGM variant package with all required layers/configuration.
 
-`map.json` schema 6 preserves original `province_ids` and `provinces` for
+`map.json` schema 9 preserves original `province_ids` and `provinces` for
 partition diagnostics. `region_ids` describes merged geography.
 `high_oceans.locations` is the authoritative movement graph, with string names,
 reciprocal neighbors, region IDs and capacity 1. `high_oceans.regions` describes
@@ -495,3 +495,88 @@ legal candidate; lower the ratio or change the generation parameters.
 CLI examples: `--no-impassable-enabled` disables placement;
 `--impassable-ratio 0.04` uses four percent. JSON uses `impassable_enabled`
 and `impassable_ratio`.
+
+
+## Supply-center designation
+
+Supply centers are enabled by default and placed after impassables. Their own
+seed and iterations never affect terrain, province division, high oceans, or
+impassable selection. The budget is fixed by:
+
+`round_half_up(5.2 * players * province_count_ratio * richness)`
+
+The base **5.2** is an internal constant, not a user setting. Province count ratio
+is the actual requested source province count divided by the player-based base
+province count at size ratio 1.0. This uses the selected province count even
+when an old size_ratio value differs. High-ocean merging and impassable placement
+do not reduce this ratio. Round once after multiplying, to the nearest integer
+with halves rounded up. Seven players, 99 source provinces (base 99), and
+richness 1.0 give 36 centers; richness 1.2 gives 44.
+
+The Supply centers panel offers an enable/disable checkbox, richness (0.8-1.2),
+coastal preference (0-2), distribution (0-1), optional SC seed, and placement
+iterations (1-100). Starting/neutral budget controls are removed. Historical
+sc_starting_per_player and sc_neutral_per_player fields are ignored when loading
+old UI or CLI JSON settings. An API request to set sc_base_per_player is rejected.
+Centers remain unassigned; home and neutral designation belongs to a later stage.
+
+Only passable land is eligible, with at most one center per province. A budget
+larger than eligible land produces an explicit error, never a silently reduced
+count. Disable placement for province-only generation. Editing SC controls pins
+blank map seeds to the displayed map; explicit seed edits are honored. Generate
+reruns deterministically rather than using a cached SC-only computation.
+
+Passable land components receive proportional budgets with weighted randomized
+rounding, so small islands are not automatically guaranteed a center. Candidate
+placements are scored using spacing (40%), regional distribution (30%), coastal
+mix (20%), and accessibility (10%). Spacing uses BFS through passable land only.
+Sea access is evaluated independently using water-only routes between land
+components; this is a heuristic, not a convoy-order simulation or player-balance
+test. Distribution 0 favors nearby centers and 1 favors wider separation.
+Coastal preference scales the eligible coastal-land share, subject to feasibility.
+
+SC SVG markers are outlined circles with central dots beside province numbers.
+All centers remain unassigned: supply_center is true, home_power and owner are
+null. map.json schema 9 and report.json export supply_centers, including chosen
+IDs, the complete budget formula and factors, seed, component scores, candidate
+scores, and regional allocation. The structural map score is unchanged by SC
+settings. Power assignment and initial armies/fleets remain unimplemented.
+
+
+## Global seed and pipeline reruns
+
+The first sidebar control is now **Global seed**. The workshop derives stable,
+independent terrain, province and SC seeds from that integer and stage names.
+A global seed determines the initial stage seeds. Stage reruns instead choose
+fresh random seeds for the selected stage and every downstream stage. Earlier
+stages keep their saved seeds and generated data.
+
+Leave the global seed blank for a fresh random seed when clicking Generate map.
+The actual seed is shown below the map and saved in parameters.json. Save settings
+also captures that actual seed when the input is blank. Change the global seed
+and use Generate map to create a different random map.
+
+The dropdown beside Generate map selects **Terrain onward**, **Provinces onward**,
+**Supply centers**, or disabled **Power (coming later)**. Click Rerun to recompute:
+
+- Terrain: randomize all stages with current settings.
+- Provinces: reuse saved elevation and cleaned terrain, then rebuild provinces,
+  high oceans, impassables and supply centers.
+- Supply centers: reuse saved terrain and provinces and replace only SC designation.
+
+A rerun keeps the source map's earlier-stage settings; pending changes to those
+settings are discarded and the sidebar restores the settings actually used.
+To apply them, rerun from their stage or generate the entire map. Changing the
+global seed requires Generate map. Source files remain unchanged; each run gets
+a new output folder. Reruns create a new random variation even when the global
+seed and settings are unchanged. Reruns are available after the first
+successful map using a global seed; historical maps need full regeneration first.
+
+The /api/rerun endpoint accepts parameters, source_id and stage (terrain,
+province or sc). map.json schema 9 includes pipeline stage and actual stage seeds.
+Saved settings include hidden terrain_seed_override, province_seed_override and
+sc_seed_override fields. Load those settings and use Generate map to replay a
+rerun result; its global seed alone is insufficient. Changing or clearing the
+global seed in the UI clears these overrides. Old internal seed fields remain
+readable for compatibility. CLI supports
+--global-seed. Python callers without a global seed retain historical seed behavior.

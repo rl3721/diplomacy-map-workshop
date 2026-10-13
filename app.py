@@ -14,6 +14,8 @@ import webbrowser
 from generator import Config, generate
 from profiles import STYLES, targets_for
 from scoring import connectivity_policy
+from supply_centers import center_budget
+from random_seeds import derive_seeds
 
 ROOT = Path(__file__).resolve().parent
 ARTIFACTS = {'01_elevation.svg', '02_cleaned.svg', '03_provinces.svg',
@@ -32,14 +34,21 @@ def province_limits(players, hex_count):
 def parse_config(values, random_seeds=True):
     if not isinstance(values, dict):
         raise ValueError('Parameters must be a JSON object')
+    values = {key: value for key, value in values.items()
+              if key not in ('sc_starting_per_player', 'sc_neutral_per_player')}
     unknown = set(values) - {f.name for f in fields(Config)}
     if unknown:
         raise ValueError('Unknown parameters: ' + ', '.join(sorted(unknown)))
     settings = dict(values)
     settings.update(LOCKED_SETTINGS)
-    for name in ('seed', 'division_seed'):
-        if settings.get(name) in (None, ''):
-            settings[name] = secrets.randbelow(2 ** 31) if random_seeds else 42
+    if settings.get('global_seed') in (None, ''):
+        if 'global_seed' in settings:
+            for key in ('terrain_seed_override', 'province_seed_override', 'sc_seed_override'):
+                settings[key] = None
+        # Import old settings using their terrain seed as the new master seed.
+        settings['global_seed'] = settings.get('seed') if 'global_seed' not in settings and settings.get('seed') not in (None, '') else (secrets.randbelow(2 ** 31) if random_seeds else 42)
+    for name in ('seed', 'division_seed', 'sc_seed'):
+        settings[name] = 42  # Internal values are always derived below.
     config = Config(**settings)
     # Migrate old absolute cleanup settings to fractions in the workshop.
     for kind in ('land', 'water'):
@@ -57,7 +66,7 @@ def parse_config(values, random_seeds=True):
             requested = config.province_count or round(base * config.size_ratio)
             config.province_count = max(minimum, min(maximum, requested))
     config.validate()
-    return config
+    return derive_seeds(config)
 
 
 def result_summary(folder, job_id):
@@ -72,6 +81,7 @@ def result_summary(folder, job_id):
     return {'id': job_id, 'state': 'complete', 'message': 'Map ready', 'progress': 1,
             'parameters': parameters, 'province_count': report['province_count'],
             'impassable_count': report.get('impassable', {}).get('count', 0),
+            'supply_centers': report.get('supply_centers'),
             'playable_location_count': report.get('playable_location_count', report['province_count']),
             'categories': report['scoring']['composition']['actual_counts'],
             'scoring': report['scoring'], 'elapsed_seconds': report['elapsed_seconds'],
@@ -98,17 +108,51 @@ class Workshop:
                 continue
         return None
 
-    def start(self, config):
+    def rerun(self, values, source_id, stage):
+        if stage not in ('terrain', 'province', 'sc'):
+            raise ValueError('Choose terrain, province, or sc. Power generation is not implemented.')
+        if not isinstance(source_id, str) or not re.fullmatch(r'[0-9a-f]{16}', source_id):
+            raise ValueError('Select an existing generated map first.')
+        source = self.output / source_id
+        if not (source / 'map.json').is_file():
+            raise ValueError('The source map is unavailable. Generate a new map first.')
+        saved = json.loads((source / 'parameters.json').read_text(encoding='utf-8'))
+        if saved.get('global_seed') is None:
+            raise ValueError('Generate a map with a global seed before using stage reruns.')
+        if not isinstance(values, dict):
+            raise ValueError('Parameters must be an object')
+        if values.get('global_seed') not in (None, '', saved['global_seed']):
+            raise ValueError('The global seed changed. Use Generate map to apply it to the whole pipeline.')
+        terrain_keys = {'terrain_style', 'topology', 'wrap_x', 'hex_count', 'aspect_ratio', 'land_fraction',
+                        'landmass_scale', 'roughness', 'min_land_component', 'min_water_component',
+                        'min_land_fraction', 'min_water_fraction'}
+        seed_keys = {'global_seed', 'seed', 'division_seed', 'sc_seed',
+                     'terrain_seed_override', 'province_seed_override', 'sc_seed_override'}
+        allowed = {f.name for f in fields(Config)} - seed_keys
+        if stage == 'province':
+            allowed -= terrain_keys
+        elif stage == 'sc':
+            allowed = {k for k in allowed if k.startswith('sc_')}
+        saved.update({k: v for k, v in values.items() if k in allowed})
+        current = parse_config(saved)
+        stages = [('terrain', 'seed'), ('province', 'division_seed'), ('sc', 'sc_seed')]
+        for name, field in stages[['terrain', 'province', 'sc'].index(stage):]:
+            # Uniformly choose another seed, excluding the current one.
+            value = secrets.randbelow(2**31 - 1)
+            saved[name + '_seed_override'] = value + (value >= getattr(current, field))
+        return self.start(parse_config(saved), source if stage != 'terrain' else None, stage)
+
+    def start(self, config, resume=None, stage='terrain'):
         with self.lock:
             if self.active is not None:
                 raise RuntimeError('A map is already generating. Wait for it to finish.')
             job_id = secrets.token_hex(8)
             self.active = job_id
             self.jobs[job_id] = {'id': job_id, 'state': 'running', 'message': 'Starting map generation', 'progress': 0}
-        threading.Thread(target=self.run, args=(job_id, config), daemon=True).start()
+        threading.Thread(target=self.run, args=(job_id, config, resume, stage), daemon=True).start()
         return job_id
 
-    def run(self, job_id, config):
+    def run(self, job_id, config, resume=None, stage='terrain'):
         def progress(message):
             candidate = re.search(r'candidate (\d+)/(\d+)', message)
             fraction = (.15 + .75 * int(candidate[1]) / int(candidate[2]) if candidate else
@@ -120,7 +164,7 @@ class Workshop:
                     self.jobs[job_id]['progress'] = fraction
         try:
             folder = self.output / job_id
-            generate(config, folder, progress)
+            generate(config, folder, progress, resume=resume, stage=stage)
             result = result_summary(folder, job_id)
             with self.lock:
                 self.jobs[job_id] = result
@@ -162,7 +206,7 @@ def handler_for(workshop):
             path = urlsplit(self.path).path
             if path == '/api/config':
                 defaults = asdict(Config())
-                defaults.update(seed=None, division_seed=None)
+                defaults.update(global_seed=None)
                 return self.json_response({'defaults': defaults, 'presets': STYLES,
                                            'targets': targets_for(Config()), 'token': workshop.token,
                                            'province_bases': {p: province_limits(p, 500000)[0] for p in range(1, 101)}})
@@ -192,11 +236,16 @@ def handler_for(workshop):
                     raise ValueError('Invalid request size')
                 body = json.loads(self.rfile.read(length))
                 path = urlsplit(self.path).path
+                if path == '/api/rerun':
+                    if not isinstance(body, dict):
+                        raise ValueError('Rerun request must be an object')
+                    job_id = workshop.rerun(body.get('parameters'), body.get('source_id'), body.get('stage'))
+                    return self.json_response({'id': job_id}, 202)
                 if path not in ('/api/targets', '/api/generate'):
                     return self.json_response({'error': 'Not found'}, 404)
                 config = parse_config(body, random_seeds=path == '/api/generate')
                 if path == '/api/targets':
-                    return self.json_response(targets_for(config))
+                    return self.json_response({**targets_for(config), 'supply_center_budget': center_budget(config)})
                 job_id = workshop.start(config)
                 return self.json_response({'id': job_id}, 202)
             except (ValueError, TypeError) as error:

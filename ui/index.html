@@ -11,6 +11,9 @@
     <div class="header-actions">
       <button id="load-settings">Load settings</button><button id="save-settings">Save settings</button>
       <button id="generate" class="primary" disabled>Generate map</button>
+      <div class="rerun-actions"><label for="rerun-stage" class="sr-only">Rerun from stage</label>
+      <select id="rerun-stage" disabled><option value="terrain">Terrain onward</option><option value="province">Provinces onward</option><option value="sc">Supply centers</option><option value="power" disabled>Power (coming later)</option></select>
+      <button id="rerun" disabled>Rerun</button></div>
       <input id="settings-file" type="file" accept=".json,application/json" hidden>
     </div>
   </header>
@@ -18,6 +21,12 @@
     <aside class="sidebar" aria-label="Map settings">
       <form id="settings-form">
         <fieldset id="settings-fields" disabled>
+          <section class="settings-section" aria-labelledby="random-heading">
+            <h2 id="random-heading">Random seed</h2>
+            <label for="global_seed">Global seed <span>optional</span></label>
+            <input id="global_seed" class="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off">
+            <p class="hint">One seed controls every stage. Leave blank for a new map. Rerun keeps earlier stages and randomizes the selected stage onward. Actual stage seeds are saved with the map.</p>
+          </section>
           <section class="settings-section" aria-labelledby="terrain-heading">
             <h2 id="terrain-heading">Terrain</h2><p class="section-note">Shape the land and sea.</p>
             <div id="terrain-presets" class="segments" role="group" aria-label="Terrain preset">
@@ -30,19 +39,19 @@
             <label class="field" for="topology">Map topology<select id="topology"><option value="flat">Flat</option><option value="cylinder">Horizontal wrap</option><option value="sphere">Sphere</option></select></label>
             <p class="hint" id="topology-hint">Rectangular map with open edges.</p>
             <details><summary>Advanced terrain</summary><div id="terrain-advanced" class="advanced-fields"></div></details>
-            <label class="seed-label" for="seed">Terrain seed <span>optional</span></label>
-            <input id="seed" class="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off" aria-describedby="seed-help">
-            <span id="seed-help" class="sr-only">Leave blank for a new random terrain seed.</span>
           </section>
           <section class="settings-section" aria-labelledby="province-heading">
             <h2 id="province-heading">Provinces</h2>
             <div id="province-sliders"></div>
             <p id="target-summary" class="target-summary">Target: 99 provinces</p>
             <details><summary>Advanced provinces</summary><div id="province-advanced" class="advanced-fields"></div></details>
-            <label class="seed-label" for="division_seed">Province seed <span>optional</span></label>
-            <input id="division_seed" class="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off" aria-describedby="division-seed-help">
-            <span id="division-seed-help" class="sr-only">Leave blank for a new random province division seed.</span>
             <button id="reset" class="text-button" type="button">Reset settings</button>
+          </section>
+          <section class="settings-section" aria-labelledby="sc-heading">
+            <h2 id="sc-heading">Supply centers</h2>
+            <div id="sc-controls"></div>
+            <p class="hint">Fixed base: 5.2 centers per player, scaled by province-count ratio and richness. Centers remain unassigned until power placement.</p>
+            <p id="sc-budget" class="hint"></p>
           </section>
         </fieldset>
       </form>
@@ -67,7 +76,6 @@
         <div class="map-stats" aria-live="polite"><div id="map-stats">Your map will appear here.</div><button id="details-button" class="text-button" disabled>Details</button></div>
       </section>
       <div class="future-panels">
-        <section aria-labelledby="sc-heading"><h2 id="sc-heading">Supply centers</h2><div><strong>Coming later</strong><p>Placement and richness controls.</p></div></section>
         <section aria-labelledby="powers-heading"><h2 id="powers-heading">Powers</h2><div><strong>Coming later</strong><p>Starting positions and assignments.</p></div></section>
       </div>
     </div>

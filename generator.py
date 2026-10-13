@@ -22,10 +22,16 @@ from label_placement import projected_labels
 from high_oceans import build_high_oceans
 from slot_placement import slot_positions
 from impassable import apply_impassable
+from supply_centers import designate
+from random_seeds import derive_seeds
 
 
 @dataclass
 class Config:
+    global_seed: int | None = None
+    terrain_seed_override: int | None = None
+    province_seed_override: int | None = None
+    sc_seed_override: int | None = None
     players: int = 7
     size_ratio: float = 1.0
     inland_ratio: float = 1.0
@@ -51,6 +57,12 @@ class Config:
     land_province_fraction: float = .75
     impassable_enabled: bool = True
     impassable_ratio: float = .02
+    sc_enabled: bool = True
+    sc_richness: float = 1.0
+    sc_coastal_preference: float = 1.0
+    sc_distribution: float = .7
+    sc_seed: int = 42
+    sc_iterations: int = 24
     size_variation: float = 0.4
     compactness: float = 0.8
     shape_regularity: float = 0.8
@@ -70,13 +82,22 @@ class Config:
     shape_tolerance: float = 0.6
 
     def validate(self):
+        for key in ('terrain_seed_override', 'province_seed_override', 'sc_seed_override'):
+            value = getattr(self, key)
+            if value is not None and (type(value) is not int or not 0 <= value < 2**31):
+                raise ValueError(f'{key} must be null or an integer between 0 and 2147483647')
+        if self.global_seed is not None and type(self.global_seed) is not int:
+            raise ValueError('global_seed must be an integer or null')
         for name in ('hex_count', 'seed', 'min_land_component', 'min_water_component',
-                     'province_count', 'repair_passes', 'players', 'division_seed', 'candidates'):
+                     'province_count', 'repair_passes', 'players', 'division_seed', 'candidates',
+                     'sc_seed', 'sc_iterations'):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f'{name} must be an integer')
         for field in fields(self):
             value = getattr(self, field.name)
-            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology', 'impassable_enabled'):
+            if field.name.endswith('_seed_override'):
+                continue
+            if field.name in ('terrain_style', 'province_style', 'reference_profile', 'wrap_x', 'topology', 'impassable_enabled', 'sc_enabled', 'global_seed'):
                 continue
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
@@ -90,6 +111,12 @@ class Config:
             raise ValueError('impassable_enabled must be true or false')
         if not 0 <= self.impassable_ratio <= 1:
             raise ValueError('impassable_ratio must be between 0 and 1')
+        if type(self.sc_enabled) is not bool:
+            raise ValueError('sc_enabled must be true or false')
+        for key, low, high in [('sc_richness', .8, 1.2), ('sc_coastal_preference', 0, 2),
+                               ('sc_distribution', 0, 1), ('sc_iterations', 1, 100)]:
+            if not low <= getattr(self, key) <= high:
+                raise ValueError(f'{key} must be between {low} and {high}')
         if self.topology not in ('auto', 'flat', 'cylinder', 'sphere'):
             raise ValueError('topology must be auto, flat, cylinder, or sphere')
         if self.effective_topology == 'sphere' and self.hex_count < 12:
@@ -552,8 +579,9 @@ def outline_paths(grid, labels):
             for label, rings in outline_polygons(grid, labels).items()}
 
 
-def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=()):
+def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=()):
     blocked = {pid - 1 for pid in impassable_ids}
+    centers = {pid - 1 for pid in supply_center_ids}
     ocean_ids = set()
     if high_oceans:
         ocean_ids = {o['id'] - 1 for o in high_oceans['oceans']}
@@ -579,7 +607,7 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
     lines.append('</g>')
     if province_labels is not None and spherical:
         for pid, rings in sorted(polygons.items()):
-            if pid in ocean_ids or pid in blocked:
+            if pid in ocean_ids or pid in blocked or pid in centers:
                 continue
             for x, y, font in projected_labels(rings, str(pid + 1)):
                 lines.append(f'<text x="{x:.6f}" y="{y:.6f}" text-anchor="middle" '
@@ -590,7 +618,7 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
         visible_groups = components(labels, SimpleNamespace(count=grid.count, neighbors=grid.flat_neighbors))
         for members in visible_groups:
             pid = labels[members[0]]
-            if pid in ocean_ids or pid in blocked:
+            if pid in ocean_ids or pid in blocked or pid in centers:
                 continue
             mx = statistics.mean(grid.centers[i][0] for i in members)
             my = statistics.mean(grid.centers[i][1] for i in members)
@@ -601,6 +629,21 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
             lines.append(f'<text x="{label_x:.3f}" y="{label_y}" text-anchor="middle" '
                          f'dominant-baseline="central" font-family="sans-serif" font-size="{font:.2f}" '
                          f'fill="#102d35" stroke="white" stroke-width=".6" paint-order="stroke">{pid + 1}</text>')
+    for pid in sorted(centers):
+        rings = polygons[pid]
+        if not spherical:
+            rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
+        # Fit a marker plus number inside a single combined text-sized footprint.
+        for index, (x, y, font) in enumerate(projected_labels(rings, 'SC ' + str(pid + 1))):
+            radius = font * .48
+            cx = x - font * (.35 * len(str(pid + 1)) + .45)
+            lines.append(f'<g class="supply-center" data-province="{pid + 1}" id="sc-{pid + 1}-{index}">'
+                         f'<title>Supply center {pid + 1}: unassigned</title>'
+                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="white" stroke="#142f36" stroke-width="{font*.12:.6f}"/>'
+                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius*.35:.6f}" fill="#142f36"/>'
+                         f'<text x="{cx + font*.8:.6f}" y="{y:.6f}" dominant-baseline="central" '
+                         f'font-family="sans-serif" font-size="{font:.6f}" fill="#102d35" stroke="white" '
+                         f'stroke-width="{font*.12:.6f}" paint-order="stroke">{pid + 1}</text></g>')
     for pid in sorted(blocked):
         rings = polygons[pid]
         if not spherical:
@@ -662,8 +705,9 @@ def write_terrain_svg(path, grid, heights, terrain, sea_level):
     write_svg(path, path.name, grid, labels, colors)
 
 
-def generate(config, output, progress=print):
+def generate(config, output, progress=print, resume=None, stage="terrain"):
     config.validate()
+    config = derive_seeds(config)
     requested = config
     generation_targets = targets_for(config)
     config = config.resolved()
@@ -673,9 +717,19 @@ def generate(config, output, progress=print):
     progress('1/5 Generating elevation and initial terrain')
     grid = (SphereGrid(config.hex_count, config.aspect_ratio) if config.topology == 'sphere'
             else Grid(config.hex_count, config.aspect_ratio, config.wrap_x))
-    heights, initial, sea_level = elevation(config, grid)
-    progress('2/5 Cleaning small terrain components')
-    cleaned, flips = clean_terrain(initial, grid, config)
+    prior_report = None
+    if resume is not None and stage in ('province', 'sc'):
+        resume = Path(resume)
+        previous = json.loads((resume / 'map.json').read_text(encoding='utf-8'))
+        prior_report = json.loads((resume / 'report.json').read_text(encoding='utf-8'))
+        prior_report['high_oceans']['region_of'] = {int(k): v for k, v in prior_report['high_oceans']['region_of'].items()}
+        heights, initial, cleaned = previous['elevations'], previous['initial_land'], previous['cleaned_land']
+        sea_level, flips = prior_report['sea_level'], prior_report['cleanup_flip_operations']
+        progress('2/5 Reusing saved terrain')
+    else:
+        heights, initial, sea_level = elevation(config, grid)
+        progress('2/5 Cleaning small terrain components')
+        cleaned, flips = clean_terrain(initial, grid, config)
     # Save intermediates even if province allocation later proves infeasible.
     for name, terrain in [('01_elevation.svg', initial), ('02_cleaned.svg', cleaned)]:
         write_terrain_svg(output / name, grid, heights, terrain, sea_level)
@@ -683,56 +737,65 @@ def generate(config, output, progress=print):
     # Prevent previous successful output being mistaken for this failed run.
     for name in ('03_provinces.svg', 'report.json', 'map.json', 'index.html', 'generation_failure.json'):
         (output / name).unlink(missing_ok=True)
-    progress('3/5 Allocating and growing provinces')
-    best = None
-    candidate_scores = []
-    rejected_candidates = []
-    for candidate in range(config.candidates):
-        progress(f'3/5 Province candidate {candidate + 1}/{config.candidates}')
-        owners, targets = partition(cleaned, grid, config, candidate)
-        report = measure(owners, cleaned, grid, targets, config)
-        oceans = build_high_oceans(report['provinces'])
-        report['high_oceans'] = oceans
-        report['impassable'] = apply_impassable(report['provinces'], owners, heights, oceans,
-                                               config.impassable_enabled, config.impassable_ratio)
-        geographic_two = [r['id'] for r in oceans['regions'] if len(r['neighbors']) == 2]
-        geographic_penalty = 20 * len(geographic_two) / len(oceans['regions'])
-        policy = report['scoring']['connectivity_policy']
-        policy['partition_penalty_points'] = policy['penalty_points']
-        policy['geographical_two_neighbor_region_ids'] = geographic_two
-        policy['geographical_penalty_points'] = geographic_penalty
-        policy['passable_geographical_penalty_points'] = report['impassable']['two_neighbor_penalty_points']
-        policy['penalty_points'] = max(policy['penalty_points'], geographic_penalty,
-                                      policy['passable_geographical_penalty_points'])
-        if report['valid']:
-            report['scoring']['total'] = max(0, report['scoring']['weighted_total'] - policy['penalty_points'])
-        if oceans['one_neighbor_region_ids'] or oceans['zero_capacity_region_ids']:
-            report['valid'] = report['scoring']['valid'] = False
-            policy['legal'] = False
-            report['scoring']['total'] = 0
-            report['scoring']['warnings'].append('Merged geographical regions have one neighbor or zero slot capacity.')
-        score = report['scoring']['total']
-        if not report['impassable']['legal']:
-            report['valid'] = report['scoring']['valid'] = policy['legal'] = False
-            score = report['scoring']['total'] = 0
-            report['scoring']['warnings'].append('Impassable placement leaves no playable map, disconnects it, or creates a dead end.')
-        candidate_scores.append(score)
-        if not report['valid']:
-            rejected_candidates.append({'candidate': candidate,
-                                        'impassable': report['impassable'],
-                                        'one_neighbor_region_ids': oceans['one_neighbor_region_ids'],
-                                        'zero_capacity_region_ids': oceans['zero_capacity_region_ids'],
-                                        'one_neighbor_province_ids': report['scoring']['connectivity_policy']['one_neighbor_province_ids']})
-            continue
-        if best is None or score > best[0]:
-            best = (score, owners, targets, report, candidate)
-    if best is None:
-        failure = {'valid': False, 'score': 0, 'reason': 'Every iteration contains a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity.',
-                   'candidate_scores': candidate_scores, 'rejected_candidates': rejected_candidates}
-        (output / 'generation_failure.json').write_text(json.dumps(failure, indent=2), encoding='utf-8')
-        raise ValueError(f'No legal province layout in {config.candidates} iterations: every layout has a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity. '
-                         'Try another province seed, more iterations, or different terrain. Terrain intermediates were saved; no province map was exported.')
-    _, owners, targets, report, selected = best
+    if prior_report is not None and stage == 'sc':
+        progress('3/5 Reusing saved province division')
+        owners = [p - 1 for p in previous['province_ids']]
+        report = prior_report
+        targets = [p['target_hex_count'] for p in report['provinces']]
+        candidate_scores = report['candidate_scores']
+        rejected_candidates = report['rejected_candidates']
+        selected = report['selected_candidate']
+    else:
+        progress('3/5 Allocating and growing provinces')
+        best = None
+        candidate_scores = []
+        rejected_candidates = []
+        for candidate in range(config.candidates):
+            progress(f'3/5 Province candidate {candidate + 1}/{config.candidates}')
+            owners, targets = partition(cleaned, grid, config, candidate)
+            report = measure(owners, cleaned, grid, targets, config)
+            oceans = build_high_oceans(report['provinces'])
+            report['high_oceans'] = oceans
+            report['impassable'] = apply_impassable(report['provinces'], owners, heights, oceans,
+                                                   config.impassable_enabled, config.impassable_ratio)
+            geographic_two = [r['id'] for r in oceans['regions'] if len(r['neighbors']) == 2]
+            geographic_penalty = 20 * len(geographic_two) / len(oceans['regions'])
+            policy = report['scoring']['connectivity_policy']
+            policy['partition_penalty_points'] = policy['penalty_points']
+            policy['geographical_two_neighbor_region_ids'] = geographic_two
+            policy['geographical_penalty_points'] = geographic_penalty
+            policy['passable_geographical_penalty_points'] = report['impassable']['two_neighbor_penalty_points']
+            policy['penalty_points'] = max(policy['penalty_points'], geographic_penalty,
+                                          policy['passable_geographical_penalty_points'])
+            if report['valid']:
+                report['scoring']['total'] = max(0, report['scoring']['weighted_total'] - policy['penalty_points'])
+            if oceans['one_neighbor_region_ids'] or oceans['zero_capacity_region_ids']:
+                report['valid'] = report['scoring']['valid'] = False
+                policy['legal'] = False
+                report['scoring']['total'] = 0
+                report['scoring']['warnings'].append('Merged geographical regions have one neighbor or zero slot capacity.')
+            score = report['scoring']['total']
+            if not report['impassable']['legal']:
+                report['valid'] = report['scoring']['valid'] = policy['legal'] = False
+                score = report['scoring']['total'] = 0
+                report['scoring']['warnings'].append('Impassable placement leaves no playable map, disconnects it, or creates a dead end.')
+            candidate_scores.append(score)
+            if not report['valid']:
+                rejected_candidates.append({'candidate': candidate,
+                                            'impassable': report['impassable'],
+                                            'one_neighbor_region_ids': oceans['one_neighbor_region_ids'],
+                                            'zero_capacity_region_ids': oceans['zero_capacity_region_ids'],
+                                            'one_neighbor_province_ids': report['scoring']['connectivity_policy']['one_neighbor_province_ids']})
+                continue
+            if best is None or score > best[0]:
+                best = (score, owners, targets, report, candidate)
+        if best is None:
+            failure = {'valid': False, 'score': 0, 'reason': 'Every iteration contains a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity.',
+                       'candidate_scores': candidate_scores, 'rejected_candidates': rejected_candidates}
+            (output / 'generation_failure.json').write_text(json.dumps(failure, indent=2), encoding='utf-8')
+            raise ValueError(f'No legal province layout in {config.candidates} iterations: every layout has a one-neighbor province/region, zero-capacity high ocean, or invalid impassable connectivity. '
+                             'Try another province seed, more iterations, or different terrain. Terrain intermediates were saved; no province map was exported.')
+        _, owners, targets, report, selected = best
     report.update(generation_targets=generation_targets, candidate_scores=candidate_scores,
                   rejected_candidates=rejected_candidates,
                   selected_candidate=selected, requested_parameters=asdict(requested))
@@ -744,6 +807,10 @@ def generate(config, output, progress=print):
                    'terrain_components': {kind: sorted([len(c) for c in components(cleaned, grid)
                                                        if cleaned[c[0]] == flag], reverse=True)
                                           for kind, flag in [('land', True), ('water', False)]}})
+    progress('4/5 Designating supply centers')
+    report['pipeline'] = {'stage': stage, 'global_seed': config.global_seed,
+                          'stage_seeds': {'terrain': config.seed, 'province': config.division_seed, 'sc': config.sc_seed}}
+    report['supply_centers'] = designate(report['provinces'], report['high_oceans'], config)
     progress('5/5 Exporting province SVG and preview')
     palette = {}
     rng = random.Random(f'{config.seed}:colors')
@@ -757,7 +824,7 @@ def generate(config, output, progress=print):
     report['geographical_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['regions']])
     report['scoring']['scope'] = 'Original province partition; merged geographical dead ends also invalidate the map. Movement graph is exported separately.'
     write_svg(output / '03_provinces.svg', 'Provinces and named high-ocean slots', grid, owners, palette, True,
-              report['high_oceans'], report['impassable']['province_ids'])
+              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'])
     report['elapsed_seconds'] = time.perf_counter() - started
     grid_metadata = (grid.metadata() if config.topology == 'sphere' else
                      {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count,
@@ -765,7 +832,8 @@ def generate(config, output, progress=print):
     report['grid'] = grid_metadata if config.topology != 'sphere' else {
         k: v for k, v in grid_metadata.items() if k not in ('cell_neighbors', 'cell_longitude_latitude_radians')}
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
-    data = {'schema_version': 6, 'grid': grid_metadata, 'impassable': report['impassable'],
+    data = {'schema_version': 9, 'grid': grid_metadata, 'impassable': report['impassable'],
+            'supply_centers': report['supply_centers'], 'pipeline': report['pipeline'],
             'high_oceans': report['high_oceans'],
             'region_ids': [report['high_oceans']['region_of'][p + 1] for p in owners],
             'elevations': heights, 'initial_land': initial, 'cleaned_land': cleaned,
@@ -796,6 +864,7 @@ Review flags: {html.escape(str(shape['flagged_province_ids']))}.</p>
 largest remaining piece by removing one hex. Flags identify travel above 4.5, thin cells above 5%,
 or neck fraction above 20%; these are review heuristics, and terrain can impose narrow regions.</p></section>'''
     expected = scoring['composition']['expected_counts']
+    sc = report['supply_centers']
     score_panel = f'''<section><h2>Structural score: {scoring['total']:.1f} / 100</h2>
 <table><thead><tr><th>Component</th><th>Score / 100</th><th>Weight</th><th>Points</th></tr></thead>
 <tbody>{score_rows}</tbody></table>
@@ -816,6 +885,7 @@ Size and shape measure generation quality; other components compare the selected
 <p>Terrain: {config.terrain_style}. Players: {config.players}. Topology: {config.topology}.
 Best of {config.candidates} divisions. References: {html.escape(', '.join(generation_targets['members']))}.</p>
 <p>{html.escape(score_warnings)}</p></section>'''
+    score_panel += f'<section><h2>Supply centers: {sc["count"]}</h2><p>Fixed base 5.2 × {config.players} players × {sc["budget"]["province_ratio"]:.4f} province ratio × {config.sc_richness} richness, rounded to the nearest integer. All centers remain unassigned.</p><p>Placement score: {sc["score"]}. {html.escape(sc["note"])}</p></section>'
     cards = ''.join(f'<section><h2>{title}</h2><a href="{name}">Open SVG</a><img src="{name}" alt="{title}"></section>'
                     for name, title in [('01_elevation.svg', '01 · Elevation / land and water'),
                                         ('02_cleaned.svg', '02 · Small regions cleaned'),
@@ -844,14 +914,21 @@ def main():
     parser.add_argument('--open', action='store_true', help='Open HTML preview after generation')
     defaults = Config()
     for field in fields(defaults):
-        if isinstance(getattr(defaults, field.name), bool):
+        if field.name == 'global_seed' or field.name.endswith('_seed_override'):
+            parser.add_argument('--' + field.name.replace('_', '-'), type=int)
+        elif isinstance(getattr(defaults, field.name), bool):
             parser.add_argument('--' + field.name.replace('_', '-'), action=argparse.BooleanOptionalAction, default=None)
         else:
             parser.add_argument('--' + field.name.replace('_', '-'), type=type(getattr(defaults, field.name)))
     args = parser.parse_args()
     try:
         settings = json.loads(args.config.read_text(encoding='utf-8')) if args.config else {}
+        # Older settings may contain editable home/neutral budgets; these no longer apply.
+        for obsolete in ('sc_starting_per_player', 'sc_neutral_per_player'):
+            settings.pop(obsolete, None)
         settings.update({f.name: getattr(args, f.name) for f in fields(defaults) if getattr(args, f.name) is not None})
+        if settings.get('global_seed') is None:
+            settings['global_seed'] = settings.get('seed', 42)
         generate(Config(**settings), args.output)
     except (ValueError, TypeError, OSError) as error:
         parser.exit(2, f'Error: {error}\n')

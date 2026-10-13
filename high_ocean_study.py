@@ -14,7 +14,7 @@ def main():
     for number in range(1, 11):
         seed = 1000 + number
         destination = root / f'map-{number:02d}'
-        report = generate(Config(hex_count=5000, province_count=99,
+        report = generate(Config(sc_enabled=False, hex_count=5000, province_count=99,
                                  land_province_fraction=.2, seed=seed, division_seed=seed), destination)
         oceans = report['high_oceans']['oceans']
         results.append({'map': number, 'seed': seed, 'score': report['scoring']['total'],

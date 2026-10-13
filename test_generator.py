@@ -21,7 +21,7 @@ class GeneratorTests(unittest.TestCase):
         grid = Grid(100, 1)
         terrain = [False] * 100
         terrain[45] = True
-        config = Config(hex_count=100, min_land_component=2, min_water_component=2)
+        config = Config(sc_enabled=False, hex_count=100, min_land_component=2, min_water_component=2)
         cleaned, _ = clean_terrain(terrain, grid, config)
         self.assertFalse(any(cleaned))
         self.assertEqual(clean_terrain(cleaned, grid, config)[0], cleaned)
@@ -36,7 +36,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertGreaterEqual(min(targets), 1)
 
     def test_end_to_end_reproducibility_and_svg(self):
-        config = Config(hex_count=600, province_count=12, min_land_component=12,
+        config = Config(sc_enabled=False, hex_count=600, province_count=12, min_land_component=12,
                         min_water_component=12, land_province_fraction=.65, seed=0)
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             result = generate(config, first, lambda _: None)
@@ -55,7 +55,7 @@ class GeneratorTests(unittest.TestCase):
     def test_pure_terrain_and_single_hex(self):
         for fraction in (0, 1):
             with tempfile.TemporaryDirectory() as folder:
-                report = generate(Config(hex_count=1, province_count=1, land_fraction=fraction), folder, lambda _: None)
+                report = generate(Config(sc_enabled=False, hex_count=1, province_count=1, land_fraction=fraction), folder, lambda _: None)
                 self.assertTrue(report['valid'])
                 self.assertEqual(report['degree_statistics']['all']['mean'], 0)
 
@@ -82,7 +82,7 @@ class GeneratorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             final = Path(folder) / '03_provinces.svg'
             final.write_text('old map')
-            config = Config(hex_count=600, province_count=1, min_land_component=12,
+            config = Config(sc_enabled=False, hex_count=600, province_count=1, min_land_component=12,
                             min_water_component=12)
             with self.assertRaises(ValueError):
                 generate(config, folder, lambda _: None)
@@ -94,7 +94,7 @@ class GeneratorTests(unittest.TestCase):
         for changes in ({'hex_count': 0}, {'roughness': 2}, {'province_count': 50001},
                         {'aspect_ratio': float('nan')}, {'hex_count': 2.5}):
             with self.assertRaises(ValueError):
-                Config(**changes).validate()
+                Config(sc_enabled=False, **changes).validate()
 
 
 if __name__ == '__main__':

@@ -77,7 +77,7 @@ class SphereTests(unittest.TestCase):
         self.assertLess(max(map(len, g.neighbors)), 12)
 
     def test_elevation_uses_sphere_positions_not_projected_coordinates(self):
-        config = Config(topology='sphere', hex_count=600, province_count=12)
+        config = Config(sc_enabled=False, topology='sphere', hex_count=600, province_count=12)
         a, b = SphereGrid(600, .5), SphereGrid(600, 3)
         self.assertEqual(elevation(config, a), elevation(config, b))
         # Both sides of the display seam denote the same 3D location.
@@ -92,11 +92,11 @@ class SphereTests(unittest.TestCase):
         b = a + g.row_sizes[row] - 1
         terrain = [False] * g.count
         terrain[a] = terrain[b] = True
-        cleaned, _ = clean_terrain(terrain, g, Config(min_land_component=2, min_water_component=2))
+        cleaned, _ = clean_terrain(terrain, g, Config(sc_enabled=False, min_land_component=2, min_water_component=2))
         self.assertEqual(cleaned, terrain)
 
     def test_generate_and_reproduce_all_exports(self):
-        config = Config(topology='sphere', hex_count=1200, province_count=20, candidates=2,
+        config = Config(sc_enabled=False, topology='sphere', hex_count=1200, province_count=20, candidates=2,
                         min_land_component=15, min_water_component=15)
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             report = generate(config, first, lambda _: None)
@@ -120,21 +120,21 @@ class SphereTests(unittest.TestCase):
 
     def test_single_province_has_no_phantom_polar_perimeter(self):
         with tempfile.TemporaryDirectory() as folder:
-            report = generate(Config(topology='sphere', hex_count=97, province_count=1,
+            report = generate(Config(sc_enabled=False, topology='sphere', hex_count=97, province_count=1,
                                      land_fraction=1, candidates=1), folder, lambda _: None)
             province = report['provinces'][0]
             self.assertEqual(province['surface_perimeter_radians'], 0)
             self.assertEqual(province['perimeter_efficiency'], 1)
 
     def test_legacy_wrap_and_explicit_topology_precedence(self):
-        self.assertEqual(Config(wrap_x=True).resolved().topology, 'cylinder')
-        self.assertFalse(Config(topology='flat', wrap_x=True).resolved().wrap_x)
-        self.assertTrue(Config(topology='sphere').resolved().wrap_x)
-        flat, sphere = targets_for(Config()), targets_for(Config(topology='sphere'))
+        self.assertEqual(Config(sc_enabled=False, wrap_x=True).resolved().topology, 'cylinder')
+        self.assertFalse(Config(sc_enabled=False, topology='flat', wrap_x=True).resolved().wrap_x)
+        self.assertTrue(Config(sc_enabled=False, topology='sphere').resolved().wrap_x)
+        flat, sphere = targets_for(Config(sc_enabled=False, )), targets_for(Config(sc_enabled=False, topology='sphere'))
         for key in ('province_count', 'category_fractions', 'degree_histograms'):
             self.assertEqual(flat[key], sphere[key])
         self.assertEqual(sphere['global_profile'], 'world')
-        for config in (Config(topology='torus'), Config(topology='sphere', hex_count=11, province_count=1)):
+        for config in (Config(sc_enabled=False, topology='torus'), Config(sc_enabled=False, topology='sphere', hex_count=11, province_count=1)):
             with self.assertRaises(ValueError):
                 config.validate()
 
