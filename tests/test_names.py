@@ -26,9 +26,7 @@ class ProvinceNamesTests(unittest.TestCase):
         self.assertTrue(all(len(n) == 4 and n.isalpha() and n.isupper() for n in names))
         self.assertEqual(names[0][0], names[1][0])
         self.assertNotEqual(names[0][0], names[5][0])
-        self.assertEqual([p.get('water_kind') for p in provinces[2:5]], ['sea', 'ocean', 'sea'])
-        self.assertTrue(names[3].endswith('O'))
-        self.assertTrue(names[2].endswith('S'))
+        self.assertTrue(all('water_kind' not in p for p in provinces[2:5]))
         for old, new in zip(before['locations'], graph['locations']):
             self.assertEqual(old['name'], new['name'])
             self.assertEqual(old['neighbors'], new['neighbors'])
@@ -54,7 +52,7 @@ class ProvinceNamesTests(unittest.TestCase):
         assign_names(provinces, graph, 42)
         self.assertTrue(graph['oceans'])
         for ocean in graph['oceans']:
-            self.assertTrue(ocean['display_name'].endswith('O'))
+            self.assertEqual(len(ocean['display_name']), 4)
             slots = [p for p in graph['locations'] if p['region_id'] == ocean['id']]
             self.assertTrue(all(p['display_name'].startswith(ocean['display_name'] + '.') for p in slots))
         lookup = {p['name']: p['display_name'] for p in graph['locations']}

@@ -17,18 +17,14 @@ three letters are random. More than 26 landmasses reuse prefixes, while full
 codes remain unique; `continent_id` distinguishes them. Four-letter namespaces
 are finite and exhaustion produces an explicit error.
 
-Water currently uses a deliberately simple first pass:
-
-- `xxxO`: a deep-water province with no adjacent land, including merged oceans.
-- `xxxS`: a province adjacent to land.
-
-These are generation labels, not definitive geographical classifications.
-Gulf (`GOxx`) and Strait (`SOxx`, retaining the requested spelling of the code)
-identification is proposed below, not enabled yet. The geographical term is
-**strait**, rather than straight.
+Water currently uses neutral random four-letter codes with no category encoded.
+Ocean (`xxxO`), Sea (`xxxS`), Gulf (`GOxx`) and Strait (`SOxx`) classification
+is pending user review; none of these patterns is intentionally assigned yet.
+A random code may incidentally match a proposed pattern without implying a
+classification. The geographical term is **strait**, rather than straight.
 
 A merged high ocean takes its representative province's code; its separate
-movement slots are displayed as `ABCO.1`, `ABCO.2`, etc. Merged source provinces
+movement slots are displayed as `ABCD.1`, `ABCD.2`, etc. Merged source provinces
 retain their own unique source names in JSON. Numeric province IDs and existing
 movement keys remain stable; `name`, `display_name` and `neighbor_display_names`
 provide the human-readable mapping without breaking graph references.

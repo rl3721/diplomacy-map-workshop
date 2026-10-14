@@ -49,9 +49,8 @@ def assign_names(provinces, movement, seed):
                               continent_prefix=prefix)
     for pid, province in sorted(by_id.items()):
         if province['terrain'] == 'water':
-            deep = all(by_id[n]['terrain'] == 'water' for n in province['neighbors'])
-            province.update(name=code(suffix='O' if deep else 'S'),
-                            water_kind='ocean' if deep else 'sea')
+            province.pop('water_kind', None)
+            province.update(name=code())
     for region in movement['regions']:
         region['display_name'] = by_id[region['id']]['name']
     for ocean in movement['oceans']:
@@ -62,5 +61,5 @@ def assign_names(provinces, movement, seed):
     location_names = {p['name']: p['display_name'] for p in movement['locations']}
     for location in movement['locations']:
         location['neighbor_display_names'] = [location_names[n] for n in location['neighbors']]
-    return {'version': 1, 'water_rule': 'Ocean: no adjacent land; Sea: adjacent land. Gulf/Strait classification pending.',
+    return {'version': 1, 'water_rule': 'Neutral four-letter codes; Ocean/Sea/Gulf/Strait classification pending approval.',
             'continent_count': len(continents), 'prefix_reuse': len(continents) > 26}
