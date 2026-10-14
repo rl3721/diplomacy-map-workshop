@@ -245,7 +245,7 @@ function showResult(result) {
   const powers = result.powers;
   $('power-summary').replaceChildren();
   const message = document.createElement('p'); message.textContent = powers?.message ?? 'Regenerate to assign powers.'; $('power-summary').append(message);
-  for (const power of powers?.players ?? []) { const row = document.createElement('p'); row.textContent = `${power.id}: centers ${power.starting_centers.join(', ')} ? victory ${power.vscc}`; row.style.borderLeft = `12px solid ${power.color}`; row.style.paddingLeft = '8px'; $('power-summary').append(row); }
+  for (const power of powers?.players ?? []) { const row = document.createElement('p'); row.textContent = `${power.id}: centers ${power.starting_centers.map(id => result.province_names?.[id] ?? id).join(', ')} ? victory ${power.vscc}`; row.style.borderLeft = `12px solid ${power.color}`; row.style.paddingLeft = '8px'; $('power-summary').append(row); }
   $('seed-status').textContent = `Global seed ${result.parameters.global_seed ?? 'legacy'}`;
   $('rerun').disabled = $('rerun-stage').disabled = state.busy || result.parameters.global_seed == null;
   $('status').textContent = `Map ready · ${result.elapsed_seconds.toFixed(1)} seconds`;
@@ -301,12 +301,12 @@ function showDetails() {
   container.append(table);
   if (r.scoring.connectivity_policy) {
     const policy = r.scoring.connectivity_policy, note = document.createElement('p');
-    note.textContent = `Weighted subtotal ${r.scoring.weighted_total.toFixed(2)} − two-neighbor penalty ${policy.penalty_points.toFixed(2)} = final score ${r.scoring.total.toFixed(2)}. Two-neighbor provinces: ${policy.two_neighbor_province_ids.join(', ') || 'none'}. One-neighbor layouts are illegal and rejected.`;
+    note.textContent = `Weighted subtotal ${r.scoring.weighted_total.toFixed(2)} − two-neighbor penalty ${policy.penalty_points.toFixed(2)} = final score ${r.scoring.total.toFixed(2)}. Two-neighbor provinces: ${policy.two_neighbor_province_ids.map(id => r.province_names?.[id] ?? id).join(', ') || 'none'}. One-neighbor layouts are illegal and rejected.`;
     container.append(note);
   }
   if (r.supply_centers) { const sc = r.supply_centers, p = document.createElement('p'); const budget = sc.budget ? `Fixed base 5.2 × ${sc.budget.players} players × ${sc.budget.province_ratio.toFixed(3)} province ratio × ${sc.budget.richness.toFixed(2)} richness.` : 'Historical placement; regenerate to use the fixed 5.2 base.'; p.textContent = `${sc.count} supply centers. ${budget} Placement score: ${sc.score === null ? 'disabled / empty' : sc.score.toFixed(1)}. ${sc.note}`; container.append(p); }
   const shape = r.scoring.shape;
-  for (const text of [`${r.categories.inland} inland, ${r.categories.coastal} coastal, ${r.categories.sea} sea provinces. Mean neighbors: ${r.degree.mean.toFixed(2)}.`, `Perimeter efficiency: ${shape.mean_perimeter_efficiency.toFixed(2)} average, ${shape.min_perimeter_efficiency.toFixed(2)} minimum. Shape-review provinces: ${shape.flagged_province_ids.join(', ') || 'none'}.`, 'Scores describe map structure, not gameplay balance.', ...r.scoring.warnings]) { const p = document.createElement('p'); p.textContent = text; container.append(p); }
+  for (const text of [`${r.categories.inland} inland, ${r.categories.coastal} coastal, ${r.categories.sea} sea provinces. Mean neighbors: ${r.degree.mean.toFixed(2)}.`, `Perimeter efficiency: ${shape.mean_perimeter_efficiency.toFixed(2)} average, ${shape.min_perimeter_efficiency.toFixed(2)} minimum. Shape-review provinces: ${shape.flagged_province_ids.map(id => r.province_names?.[id] ?? id).join(', ') || 'none'}.`, 'Scores describe map structure, not gameplay balance.', ...r.scoring.warnings]) { const p = document.createElement('p'); p.textContent = text; container.append(p); }
   const links = document.createElement('p'); links.className = 'download-links';
   for (const [file, title] of [['parameters.json', 'Exact parameters'], ['report.json', 'Full statistics'], ['map.json', 'Map data']]) { const a = document.createElement('a'); a.href = r.urls[file]; a.download = file; a.textContent = title; links.append(a); }
   container.append(links); $('details-dialog').showModal();

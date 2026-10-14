@@ -76,6 +76,7 @@ def result_summary(folder, job_id):
             'parameters': parameters, 'province_count': report['province_count'],
             'impassable_count': report.get('impassable', {}).get('count', 0),
             'supply_centers': report.get('supply_centers'), 'powers': report.get('powers'),
+            'province_names': {p['id']: p.get('name', str(p['id'])) for p in report['provinces']},
             'playable_location_count': report.get('playable_location_count', report['province_count']),
             'categories': report['scoring']['composition']['actual_counts'],
             'scoring': report['scoring'], 'elapsed_seconds': report['elapsed_seconds'],

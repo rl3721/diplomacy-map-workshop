@@ -6,7 +6,7 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_FILES = ['mapgen/' + name for name in ['__init__.py', 'browser_api.py', 'workshop_core.py', 'generator.py', 'profiles.py',
                 'scoring.py', 'shapes.py', 'sphere.py', 'label_placement.py',
-                'high_oceans.py', 'slot_placement.py', 'impassable.py',
+                'high_oceans.py', 'slot_placement.py', 'impassable.py', 'names.py',
                 'supply_centers.py', 'powers.py', 'random_seeds.py',
                 'data/classic_reference.json', 'data/variant_profiles.json']]
 

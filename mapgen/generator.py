@@ -12,7 +12,6 @@ from pathlib import Path
 import random
 import statistics
 import time
-from types import SimpleNamespace
 
 from .scoring import COMPONENTS, score_map
 from .profiles import STYLES, targets_for
@@ -25,6 +24,7 @@ from .impassable import apply_impassable
 from .supply_centers import designate
 from .random_seeds import derive_seeds
 from .powers import assign_powers
+from .names import assign_names
 
 
 @dataclass
@@ -585,10 +585,13 @@ def outline_paths(grid, labels):
             for label, rings in outline_polygons(grid, labels).items()}
 
 
-def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=(), power_owners=None):
+def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=(), power_owners=None, province_names=None):
     blocked = {pid - 1 for pid in impassable_ids}
     centers = {pid - 1 for pid in supply_center_ids}
     power_owners = power_owners or {}
+    province_names = province_names or {}
+    def display_name(pid):
+        return province_names.get(pid + 1, str(pid + 1))
     ocean_ids = set()
     if high_oceans:
         ocean_ids = {o['id'] - 1 for o in high_oceans['oceans']}
@@ -612,43 +615,36 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
         lines.append(f'<path id="region-{label}" d="{d}" fill="{fill}" fill-rule="evenodd" '
                      f'stroke="{stroke}" stroke-width="{stroke_width}" stroke-linejoin="round"/>')
     lines.append('</g>')
-    if province_labels is not None and spherical:
+    if province_labels is not None:
         for pid, rings in sorted(polygons.items()):
             if pid in ocean_ids or pid in blocked or pid in centers:
                 continue
-            for x, y, font in projected_labels(rings, str(pid + 1)):
+            if not spherical:
+                rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
+            for x, y, font in projected_labels(rings, display_name(pid)):
                 lines.append(f'<text x="{x:.6f}" y="{y:.6f}" text-anchor="middle" '
                              f'dominant-baseline="central" font-family="sans-serif" font-size="{font:.6f}" '
                              f'fill="#102d35" stroke="white" stroke-width="{min(.6, font * .1):.6f}" '
-                             f'paint-order="stroke">{pid + 1}</text>')
-    elif province_labels is not None:
-        visible_groups = components(labels, SimpleNamespace(count=grid.count, neighbors=grid.flat_neighbors))
-        for members in visible_groups:
-            pid = labels[members[0]]
-            if pid in ocean_ids or pid in blocked or pid in centers:
-                continue
-            mx = statistics.mean(grid.centers[i][0] for i in members)
-            my = statistics.mean(grid.centers[i][1] for i in members)
-            center = min(members, key=lambda i: 3 * (grid.centers[i][0] - mx) ** 2 + (grid.centers[i][1] - my) ** 2)
-            x, y = grid.centers[center]
-            font = min(10, max(2.5, math.sqrt(len(members)) * .3))
-            label_x, label_y = (x, y) if spherical else ((x + 1) * math.sqrt(3), y + 2)
-            lines.append(f'<text x="{label_x:.3f}" y="{label_y}" text-anchor="middle" '
-                         f'dominant-baseline="central" font-family="sans-serif" font-size="{font:.2f}" '
-                         f'fill="#102d35" stroke="white" stroke-width=".6" paint-order="stroke">{pid + 1}</text>')
+                             f'paint-order="stroke">{display_name(pid)}</text>')
+    center_placements = {}
     for pid in sorted(centers):
         rings = polygons[pid]
         if not spherical:
             rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
-        # Fit a marker plus number inside a single combined text-sized footprint.
-        owner = power_owners.get(pid + 1)
-        center_label = f'{owner}: {pid + 1}' if owner else str(pid + 1)
-        for index, (x, y, font) in enumerate(projected_labels(rings, 'SC ' + center_label)):
-            radius = font * .48
+        # Use the largest visible piece so a tiny seam fragment does not shrink
+        # every marker on the map. Ownership is conveyed by color and title.
+        positions = list(projected_labels(rings, 'SC ' + display_name(pid)))
+        center_placements[pid] = [max(positions, key=lambda p: p[2])] if positions else []
+    common_font = min((font for points in center_placements.values() for _, _, font in points), default=2.5)
+    common_font = min(common_font, min(width, height) * .0125)
+    for pid in sorted(centers):
+        center_label = display_name(pid)
+        for index, (x, y, font) in enumerate(center_placements[pid]):
+            radius = common_font * .48
             cx = x - font * (.35 * len(center_label) + .45)
             lines.append(f'<g class="supply-center" data-province="{pid + 1}" id="sc-{pid + 1}-{index}">'
-                         f'<title>Supply center {pid + 1}: {html.escape(power_owners.get(pid + 1) or "unassigned")}</title>'
-                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="white" stroke="#142f36" stroke-width="{font*.12:.6f}"/>'
+                         f'<title>Supply center {display_name(pid)}: {html.escape(power_owners.get(pid + 1) or "unassigned")}</title>'
+                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="white" stroke="#142f36" stroke-width="{radius*.25:.6f}"/>'
                          f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius*.35:.6f}" fill="#142f36"/>'
                          f'<text x="{cx + font*.8:.6f}" y="{y:.6f}" dominant-baseline="central" '
                          f'font-family="sans-serif" font-size="{font:.6f}" fill="#102d35" stroke="white" '
@@ -657,7 +653,7 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
         rings = polygons[pid]
         if not spherical:
             rings = [[((x + 1) * math.sqrt(3), y + 2) for x, y in ring] for ring in rings]
-        name = f'{pid + 1} Impassable'
+        name = f'{display_name(pid)} Impassable'
         for x, y, font in projected_labels(rings, name):
             lines.append(f'<text class="impassable-label" x="{x:.6f}" y="{y:.6f}" '
                          f'text-anchor="middle" dominant-baseline="central" font-family="sans-serif" '
@@ -677,15 +673,16 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
             if name not in placements:
                 continue
             x, y, _ = placements[name]
-            font = radius / (math.hypot(.4 * len(name), .75) + .2)
+            shown_name = location.get('display_name', name)
+            font = radius / (math.hypot(.4 * len(shown_name), .75) + .2)
             lines.append(f'<g class="high-ocean-slot" data-location="{name}" '
-                         f'id="slot-{name}"><title>{name}: one fleet; neighbors: '
-                         f'{html.escape(", ".join(location["neighbors"]))}</title>'
+                         f'id="slot-{name}"><title>{shown_name}: one fleet; neighbors: '
+                         f'{html.escape(", ".join(location.get("neighbor_display_names", location["neighbors"])))}</title>'
                          f'<circle cx="{x:.6f}" cy="{y:.6f}" r="{radius:.6f}" '
                          f'fill="#e8f5fc" stroke="#164c70" stroke-width="{radius * .07:.6f}"/>'
                          f'<text x="{x:.6f}" y="{y:.6f}" text-anchor="middle" '
                          f'dominant-baseline="central" font-family="sans-serif" '
-                         f'font-size="{font:.6f}" fill="#102d35">{name}</text></g>')
+                         f'font-size="{font:.6f}" fill="#102d35">{shown_name}</text></g>')
         lines.append('<metadata id="movement-graph">' + html.escape(json.dumps(high_oceans['locations'])) + '</metadata>')
         # Overlapping full-footprint geometry, as in DiplomacyGM's high seas.
         lines.append(f'<g id="sea-adjacencies" style="display:none"{transform}>')
@@ -822,6 +819,8 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     if prior_report is None or stage != 'power':
         report['supply_centers'] = designate(report['provinces'], report['high_oceans'], config)
     report['powers'] = assign_powers(report['provinces'], report['high_oceans'], config)
+    report['naming'] = assign_names(report['provinces'], report['high_oceans'], config.division_seed)
+    province_names = {p['id']: p['name'] for p in report['provinces']}
     progress('5/5 Exporting province SVG and preview')
     palette = {}
     rng = random.Random(f'{config.seed}:colors')
@@ -835,7 +834,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     report['geographical_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['regions']])
     report['scoring']['scope'] = 'Original province partition; merged geographical dead ends also invalidate the map. Movement graph is exported separately.'
     write_svg(output / '03_provinces.svg', 'Provinces and named high-ocean slots', grid, owners, palette, True,
-              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'])
+              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'], province_names=province_names)
     power_palette = dict(palette)
     colors = {p['id']: p['color'] for p in report['powers']['players']}
     for province in report['provinces']:
@@ -845,7 +844,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
             power_palette[province['id'] - 1] = '#e0e3db'
     write_svg(output / '04_powers.svg', 'Power ownership; colored home centers and neutral land', grid, owners, power_palette, True,
               report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'],
-              {p['id']: p.get('owner') for p in report['provinces']})
+              {p['id']: p.get('owner') for p in report['provinces']}, province_names=province_names)
     report['elapsed_seconds'] = time.perf_counter() - started
     grid_metadata = (grid.metadata() if config.topology == 'sphere' else
                      {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count,
@@ -853,7 +852,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     report['grid'] = grid_metadata if config.topology != 'sphere' else {
         k: v for k, v in grid_metadata.items() if k not in ('cell_neighbors', 'cell_longitude_latitude_radians')}
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
-    data = {'schema_version': 10, 'grid': grid_metadata, 'impassable': report['impassable'],
+    data = {'schema_version': 10, 'naming': report['naming'], 'grid': grid_metadata, 'impassable': report['impassable'],
             'powers': report['powers'], 'supply_centers': report['supply_centers'], 'pipeline': report['pipeline'],
             'high_oceans': report['high_oceans'],
             'region_ids': [report['high_oceans']['region_of'][p + 1] for p in owners],
@@ -869,7 +868,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     shape = scoring['shape']
     shape_lookup = {p['id']: p for p in report['provinces']}
     shape_rows = ''.join(
-        f'<tr><td>{pid}</td><td>{shape_lookup[pid]["perimeter_efficiency"]:.2f}</td>'
+        f'<tr><td>{province_names[pid]}</td><td>{shape_lookup[pid]["perimeter_efficiency"]:.2f}</td>'
         f'<td>{shape_lookup[pid]["normalized_internal_diameter"]:.2f}</td>'
         f'<td>{shape_lookup[pid]["avoidable_thin_hex_fraction"]:.1%}</td>'
         f'<td>{shape_lookup[pid]["single_hex_neck_fraction"]:.1%}</td></tr>'
@@ -877,7 +876,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     shape_panel = f'''<section><h2>Province shape checks</h2>
 <p>Perimeter efficiency: mean {shape['mean_perimeter_efficiency']:.2f},
 worst 10% {shape['worst_decile_perimeter_efficiency']:.2f}, minimum {shape['min_perimeter_efficiency']:.2f} (higher is better).
-Review flags: {html.escape(str(shape['flagged_province_ids']))}.</p>
+Review flags: {html.escape(', '.join(province_names[pid] for pid in shape['flagged_province_ids']))}.</p>
 <p>Worst provinces by terrain-adjusted shape error:</p>
 <table><thead><tr><th>Province</th><th>Efficiency</th><th>Travel / sqrt(area)</th><th>Avoidable thin cells</th><th>One-hex neck</th></tr></thead>
 <tbody>{shape_rows}</tbody></table>
@@ -907,7 +906,7 @@ Size and shape measure generation quality; other components compare the selected
 Best of {config.candidates} divisions. References: {html.escape(', '.join(generation_targets['members']))}.</p>
 <p>{html.escape(score_warnings)}</p></section>'''
     score_panel += f'<section><h2>Supply centers: {sc["count"]}</h2><p>Fixed base 5.2 × {config.players} players × {sc["budget"]["province_ratio"]:.4f} province ratio × {config.sc_richness} richness, rounded to the nearest integer. Ownership is shown in the Powers map.</p><p>Placement score: {sc["score"]}. {html.escape(sc["note"])}</p></section>'
-    score_panel += '<section><h2>Powers</h2><p>' + html.escape(report['powers']['message']) + '</p>' + ''.join('<p>' + html.escape(f"{p['id']}: starting centers {p['starting_centers']}; victory {p['vscc']}") + '</p>' for p in report['powers']['players']) + '</section>'
+    score_panel += '<section><h2>Powers</h2><p>' + html.escape(report['powers']['message']) + '</p>' + ''.join('<p>' + html.escape(f"{p['id']}: starting centers {', '.join(province_names[pid] for pid in p['starting_centers'])}; victory {p['vscc']}") + '</p>' for p in report['powers']['players']) + '</section>'
     cards = ''.join(f'<section><h2>{title}</h2><a href="{name}">Open SVG</a><img src="{name}" alt="{title}"></section>'
                     for name, title in [('01_elevation.svg', '01 · Elevation / land and water'),
                                         ('02_cleaned.svg', '02 · Small regions cleaned'),

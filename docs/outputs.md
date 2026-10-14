@@ -17,6 +17,10 @@
 
 SVG files contain vector paths, no embedded raster images. Coordinates retain hex geometry.
 These SVGs are standalone visuals, **not** DiplomacyGM's game-import schema.
+Provinces display four-letter codes; merged oceans display code-plus-slot labels.
+Supply-center circles use a common size per map. See [province names](province-names.md).
+Numeric IDs remain machine identifiers; province `name` and movement
+`display_name`/`neighbor_display_names` fields provide the label mapping.
 Land is green and water blue. Initial elevation remains available in map.json; cleanup changes terrain
 classification, not the stored height. Reclassified cells use their new terrain's color ramp.
 

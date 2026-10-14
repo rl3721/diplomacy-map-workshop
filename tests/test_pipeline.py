@@ -44,6 +44,8 @@ class PipelineTests(unittest.TestCase):
             result=json.loads((Path(root)/'sc/map.json').read_text())
             for key in ('elevations','initial_land','cleaned_land','province_ids','high_oceans','impassable'):
                 self.assertEqual(original[key],result[key])
+            self.assertEqual([p['name'] for p in original['provinces']],
+                             [p['name'] for p in result['provinces']])
             generate(sc_config,Path(root)/'replay',lambda _:None)
             replay=json.loads((Path(root)/'replay/map.json').read_text())
             for key in ('province_ids','elevations','supply_centers'):
