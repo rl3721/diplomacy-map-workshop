@@ -3,7 +3,7 @@ import random
 import string
 
 
-def assign_names(provinces, movement, seed):
+def assign_names(provinces, movement, seed, water_classes=None):
     by_id = {p['id']: p for p in provinces}
     rng = random.Random(f'{seed}:province-names-v1')
     alphabet = string.ascii_uppercase
@@ -49,10 +49,17 @@ def assign_names(provinces, movement, seed):
                               continent_prefix=prefix)
     for pid, province in sorted(by_id.items()):
         if province['terrain'] == 'water':
-            province.pop('water_kind', None)
-            province.update(name=code())
+            region = movement['region_of'][pid]
+            classification = (water_classes or {}).get(region, {'kind': 'sea', 'reason': 'No cell geometry supplied'})
+            kind = classification['kind']
+            prefix, suffix = {'ocean': ('', 'O'), 'sea': ('', 'S'),
+                              'gulf': ('GO', ''), 'strait': ('SO', '')}[kind]
+            province.update(name=code(prefix=prefix, suffix=suffix), water_kind=kind,
+                            water_classification=dict(classification))
     for region in movement['regions']:
         region['display_name'] = by_id[region['id']]['name']
+        if by_id[region['id']]['terrain'] == 'water':
+            region['water_classification'] = dict(by_id[region['id']]['water_classification'])
     for ocean in movement['oceans']:
         ocean['display_name'] = by_id[ocean['id']]['name']
     for location in movement['locations']:
@@ -61,5 +68,5 @@ def assign_names(provinces, movement, seed):
     location_names = {p['name']: p['display_name'] for p in movement['locations']}
     for location in movement['locations']:
         location['neighbor_display_names'] = [location_names[n] for n in location['neighbors']]
-    return {'version': 1, 'water_rule': 'Neutral four-letter codes; Ocean/Sea/Gulf/Strait classification pending approval.',
+    return {'version': 2, 'water_rule': 'Native-cell geometry: Strait SOxx, Gulf GOxx, Ocean xxxO, Sea xxxS; merged high oceans are Ocean.',
             'continent_count': len(continents), 'prefix_reuse': len(continents) > 26}

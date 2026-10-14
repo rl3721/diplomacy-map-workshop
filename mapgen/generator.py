@@ -25,6 +25,7 @@ from .supply_centers import designate
 from .random_seeds import derive_seeds
 from .powers import assign_powers
 from .names import assign_names
+from .water_names import classify_water
 
 
 @dataclass
@@ -585,11 +586,12 @@ def outline_paths(grid, labels):
             for label, rings in outline_polygons(grid, labels).items()}
 
 
-def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=(), power_owners=None, province_names=None):
+def write_svg(path, title, grid, labels, colors, province_labels=None, high_oceans=None, impassable_ids=(), supply_center_ids=(), power_owners=None, province_names=None, core_colors=None):
     blocked = {pid - 1 for pid in impassable_ids}
     centers = {pid - 1 for pid in supply_center_ids}
     power_owners = power_owners or {}
     province_names = province_names or {}
+    core_colors = core_colors or {}
     def display_name(pid):
         return province_names.get(pid + 1, str(pid + 1))
     ocean_ids = set()
@@ -639,13 +641,13 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
     common_font = min(common_font, min(width, height) * .0125)
     for pid in sorted(centers):
         center_label = display_name(pid)
+        core_color = core_colors.get(pid + 1, 'white')
         for index, (x, y, font) in enumerate(center_placements[pid]):
             radius = common_font * .48
             cx = x - font * (.35 * len(center_label) + .45)
             lines.append(f'<g class="supply-center" data-province="{pid + 1}" id="sc-{pid + 1}-{index}">'
                          f'<title>Supply center {display_name(pid)}: {html.escape(power_owners.get(pid + 1) or "unassigned")}</title>'
-                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="white" stroke="#142f36" stroke-width="{radius*.25:.6f}"/>'
-                         f'<circle cx="{cx:.6f}" cy="{y:.6f}" r="{radius*.35:.6f}" fill="#142f36"/>'
+                         f'<circle class="core-marker" cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="{core_color}" stroke="#142f36" stroke-width="{radius*.25:.6f}"/>'
                          f'<text x="{cx + font*.8:.6f}" y="{y:.6f}" dominant-baseline="central" '
                          f'font-family="sans-serif" font-size="{font:.6f}" fill="#102d35" stroke="white" '
                          f'stroke-width="{font*.12:.6f}" paint-order="stroke">{html.escape(center_label)}</text></g>')
@@ -819,7 +821,8 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     if prior_report is None or stage != 'power':
         report['supply_centers'] = designate(report['provinces'], report['high_oceans'], config)
     report['powers'] = assign_powers(report['provinces'], report['high_oceans'], config)
-    report['naming'] = assign_names(report['provinces'], report['high_oceans'], config.division_seed)
+    water_classes = classify_water(grid, cleaned, owners, report['high_oceans'])
+    report['naming'] = assign_names(report['provinces'], report['high_oceans'], config.division_seed, water_classes)
     province_names = {p['id']: p['name'] for p in report['provinces']}
     progress('5/5 Exporting province SVG and preview')
     palette = {}
@@ -833,8 +836,12 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
     report['movement_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['locations']])
     report['geographical_degree_statistics'] = summary([len(p['neighbors']) for p in report['high_oceans']['regions']])
     report['scoring']['scope'] = 'Original province partition; merged geographical dead ends also invalidate the map. Movement graph is exported separately.'
+    power_colors = {p['id']: p['color'] for p in report['powers']['players']}
+    core_colors = {p['id']: power_colors[p['core']] for p in report['provinces'] if p.get('core') in power_colors}
+    power_owners = {p['id']: p.get('owner') for p in report['provinces']}
     write_svg(output / '03_provinces.svg', 'Provinces and named high-ocean slots', grid, owners, palette, True,
-              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'], province_names=province_names)
+              report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'],
+              power_owners, province_names=province_names, core_colors=core_colors)
     power_palette = dict(palette)
     colors = {p['id']: p['color'] for p in report['powers']['players']}
     for province in report['provinces']:
@@ -844,7 +851,7 @@ def generate(config, output, progress=print, resume=None, stage="terrain"):
             power_palette[province['id'] - 1] = '#e0e3db'
     write_svg(output / '04_powers.svg', 'Power ownership; colored home centers and neutral land', grid, owners, power_palette, True,
               report['high_oceans'], report['impassable']['province_ids'], report['supply_centers']['province_ids'],
-              {p['id']: p.get('owner') for p in report['provinces']}, province_names=province_names)
+              power_owners, province_names=province_names, core_colors=core_colors)
     report['elapsed_seconds'] = time.perf_counter() - started
     grid_metadata = (grid.metadata() if config.topology == 'sphere' else
                      {'layout': 'odd-r', 'width': grid.width, 'hex_count': grid.count,
