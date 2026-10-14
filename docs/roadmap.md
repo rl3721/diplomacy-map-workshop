@@ -1,9 +1,32 @@
 [Home](../README.md) | [Documentation index](README.md)
 
-# Power generation roadmap
+# Development roadmap
 
 This document records future work. Unchecked items and suggested scoring weights
 are proposals, not implemented behavior or proven balance rules.
+
+## Pending: Map reviews and Cloudflare hosting
+
+Status: pending work. Assessment and setup guides are available; the review
+feature is not implemented and no Cloudflare resources have been provisioned.
+
+- [ ] Add a review option after map generation with a required 1–5 rating and
+  an optional comment, explaining what is uploaded when the user submits.
+- [ ] Capture the exact displayed map, resolved settings, actual stage seeds,
+  generator version and diagnostics so each review can be reproduced.
+- [ ] Implement the Cloudflare Worker submission API, D1 review/metric storage
+  and private R2 map snapshots, with validation and abuse controls.
+- [ ] Handle duplicate submissions, network failures and retries without losing
+  the review draft or associating it with a different map after a rerun.
+- [ ] Set up separate Cloudflare development hosting and storage from
+  `develop-main`, keeping production feedback separate from development data.
+- [ ] Add private exports for analysis, retention/deletion rules and focused
+  verification of submission, storage and access controls.
+- [ ] Use feedback to investigate generation quality and balance hypotheses;
+  distinguish perceived quality from balance established through playtesting.
+
+Details: [review proposal](map-reviews.md) and
+[Cloudflare implementation guide](cloudflare.md).
 
 ## Current baseline
 
