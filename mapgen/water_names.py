@@ -3,6 +3,11 @@ from collections import defaultdict, deque
 import math
 import statistics
 
+# Selected from the 50-map review: exploratory Strait 20%, Gulf 100%.
+DEFAULT_STRAIT_WIDTH_MAX = 1.0421002114378124
+DEFAULT_GULF_MOUTH_DEPTH_MAX = 8.25
+DEFAULT_STRAIT_REQUIRE_WIDER = False
+
 
 def groups(cells, neighbors):
     pending = set(cells)
@@ -31,12 +36,14 @@ def eligible(features, kind, require_wider=True):
     raise ValueError('Unknown water kind')
 
 
-def kind_from_features(features, strait_width_max=.65, gulf_mouth_depth_max=1.0, strait_require_wider=True):
+def kind_from_features(features, strait_width_max=DEFAULT_STRAIT_WIDTH_MAX,
+                       gulf_mouth_depth_max=DEFAULT_GULF_MOUTH_DEPTH_MAX,
+                       strait_require_wider=DEFAULT_STRAIT_REQUIRE_WIDER):
     if features.get('high_ocean', False):
         return 'ocean', 'Merged high ocean'
     if eligible(features, 'strait', strait_require_wider) and features['width_ratio'] <= strait_width_max:
         return 'strait', ('Narrow water between separate banks with two mouths reaching wider water' if strait_require_wider
-                          else 'Exploratory: narrow water between separate banks and two mouths; wider-water check disabled')
+                          else 'Narrow water between separate banks and two mouths; wider-water check disabled')
     if (eligible(features, 'gulf') and features['mouth_depth_ratio'] <= gulf_mouth_depth_max):
         return 'gulf', 'Coast-enclosed water with one mouth narrower than the configured interior-width limit'
     if features['coast_fraction'] == 0 or (features['coast_fraction'] <= .2 and features['width_ratio'] / 2 >= .35):
@@ -44,7 +51,9 @@ def kind_from_features(features, strait_width_max=.65, gulf_mouth_depth_max=1.0,
     return 'sea', 'Coastal, enclosed or ambiguous water; fallback classification'
 
 
-def classify_water(grid, land, owners, movement, strait_width_max=.65, gulf_mouth_depth_max=1.0):
+def classify_water(grid, land, owners, movement, strait_width_max=DEFAULT_STRAIT_WIDTH_MAX,
+                   gulf_mouth_depth_max=DEFAULT_GULF_MOUTH_DEPTH_MAX,
+                   strait_require_wider=DEFAULT_STRAIT_REQUIRE_WIDER):
     """Measure native graph geometry, never distances in the SVG projection.
 
     Boundary contacts approximate lengths on the cell mesh. Widths are graph
@@ -117,6 +126,9 @@ def classify_water(grid, land, owners, movement, strait_width_max=.65, gulf_mout
                           'width_ratio': width_ratio, 'mouth_width_ratio': mouth_width / scale,
                           'mouth_depth_ratio': mouth_width / max(depth, 1e-12),
                           'wider_mouth_count': sum(wider), 'scale_cells': scale}
-        kind, reason = kind_from_features(features, strait_width_max, gulf_mouth_depth_max)
-        result[region] = dict(features, kind=kind, reason=reason)
+        kind, reason = kind_from_features(features, strait_width_max, gulf_mouth_depth_max, strait_require_wider)
+        result[region] = dict(features, kind=kind, reason=reason,
+                             thresholds={'strait_width_max': strait_width_max,
+                                         'gulf_mouth_depth_max': gulf_mouth_depth_max,
+                                         'strait_require_wider': strait_require_wider})
     return result

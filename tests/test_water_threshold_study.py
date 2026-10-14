@@ -31,12 +31,12 @@ class WaterThresholdStudyTests(unittest.TestCase):
             self.assertEqual(preset['qualified'], sum(r['width_ratio'] <= preset['threshold'] for r in rows[:4]))
         self.assertTrue(all(p['threshold'] is None for p in result['gulf']))
 
-    def test_exploratory_mode_does_not_change_default_classification(self):
+    def test_selected_default_and_explicit_legacy_eligibility(self):
         row = dict(high_ocean=False, mouth_count=2, bank_count=2, wider_mouth_count=0,
                    width_ratio=.5, coast_fraction=.5, mouth_depth_ratio=2)
-        self.assertEqual(kind_from_features(row)[0], 'sea')
-        self.assertEqual(kind_from_features(row,strait_require_wider=False)[0], 'strait')
-        self.assertEqual(kind_from_features(row)[0], 'sea')
+        self.assertEqual(kind_from_features(row)[0], 'strait')
+        self.assertEqual(kind_from_features(row,strait_require_wider=True)[0], 'sea')
+        self.assertEqual(kind_from_features(row)[0], 'strait')
         self.assertEqual(sample_quantile([1,3],.25),1.5)
 
 

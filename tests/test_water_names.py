@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 import unittest
 
-from mapgen.water_names import classify_water
+from mapgen.water_names import classify_water, kind_from_features
 from mapgen.names import assign_names
 from mapgen.high_oceans import build_high_oceans
 
@@ -21,6 +21,16 @@ def raster(width, height, water, candidate, factor=1):
 
 
 class WaterClassificationTests(unittest.TestCase):
+    def test_selected_threshold_boundaries(self):
+        strait = dict(high_ocean=False, mouth_count=2, bank_count=2, wider_mouth_count=0,
+                      coast_fraction=.5, width_ratio=1.0421002114378124, mouth_depth_ratio=5)
+        self.assertEqual(kind_from_features(strait)[0], 'strait')
+        self.assertEqual(kind_from_features(dict(strait,width_ratio=1.0422))[0], 'sea')
+        gulf = dict(high_ocean=False, mouth_count=1, bank_count=1, wider_mouth_count=1,
+                    coast_fraction=.7, width_ratio=2, mouth_depth_ratio=8.25)
+        self.assertEqual(kind_from_features(gulf)[0], 'gulf')
+        self.assertEqual(kind_from_features(dict(gulf,mouth_depth_ratio=8.251))[0], 'sea')
+
     def classify(self, water, candidate, factor=1):
         grid, land, owners = raster(31, 31, water, candidate, factor)
         movement = {'region_of': {1:1, 2:2, 3:3}, 'oceans': []}

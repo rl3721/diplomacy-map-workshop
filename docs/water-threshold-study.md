@@ -2,6 +2,14 @@
 
 [Documentation index](README.md) | [Classification rules](province-names.md)
 
+## Selected defaults
+
+After reviewing this study, the user selected **exploratory Strait 20%**
+(width cutoff `1.0421002114378124`, wider-water check disabled) and **Gulf 100%**
+(mouth/depth cutoff `8.25`) as application defaults. The results below and the
+gallery baseline describe the earlier classifier; references to unchanged
+defaults refer to the study phase before this selection.
+
 ## Sample and method
 
 Generated **50/50 successful maps** using study seed `20261014`, 50 distinct

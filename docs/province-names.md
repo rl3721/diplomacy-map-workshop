@@ -40,7 +40,7 @@ and a dark central dot. The ring between them uses the assigned power color
 in both Province and Power views; neutral centers use a white ring. Existing `core`
 metadata determines the color. Marker sizes are unchanged by ownership.
 
-## Implemented water rules (version 2)
+## Implemented water rules
 
 The classifier uses cleaned land/water cells and the final merged geographical
 regions. It measures native mesh adjacency, so wrap and polar links work without
@@ -65,17 +65,24 @@ Apply these rules in order:
 
 1. **Merged high ocean -> Ocean** regardless of the other measurements.
 2. **Strait (`SOxx`)**: exactly two substantial mouths, at least two separate
-   banks, both mouths reach wider water, and estimated channel width
-   (`2 * maximum shore distance`) is at most 0.65 times the reference length.
+   banks, and estimated channel width (`2 * maximum shore distance`) at most
+   **1.0421002114378124** times the reference length. The wider-water requirement
+   is disabled for Straits, matching the reviewed exploratory 20% preset.
 3. **Gulf (`GOxx`)**: one substantial mouth reaching wider water; at least 60%
-   of boundary contacts are land; mouth contact count does not exceed maximum
-   shore distance (approximately half the estimated interior width).
+   of boundary contacts are land; mouth contact count divided by maximum
+   shore distance is at most **8.25**, matching the reviewed 100% Gulf preset.
 4. **Ocean (`xxxO`)**: no land boundary, or coastline contact fraction at most
    20% with maximum shore distance at least 0.35 times the reference length.
 5. **Sea (`xxxS`)**: everything else, including enclosed lakes and ambiguous
    channels. A lake has zero mouths and cannot qualify as a Gulf.
 
-These thresholds are initial tuning values, not geological definitions. Native
+These defaults were selected from the [50-map study](water-threshold-study.md):
+Strait 20% and Gulf 100%. They are fixed cutoffs, not quotas; new maps may have
+different eligible percentages. The study achieved 19.86% of 146 Strait
+candidates and 100% of 123 Gulf candidates. The effective cutoffs and wider-water
+flag are saved in each region's classification metadata.
+
+These thresholds are tuning values, not geological definitions. Native
 cell measurements scale with resolution, and synthetic Gulf/Strait tests check
 two resolutions; discretization and province boundaries can still change labels.
 Features spanning multiple ordinary provinces may not be recognized as a whole

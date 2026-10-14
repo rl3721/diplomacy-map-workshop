@@ -171,8 +171,8 @@ select,button{padding:8px} .pair{display:grid;grid-template-columns:1fr 1fr;gap:
 <section><p>50 attempted seeds, Peninsula, flat topology, 5,000 cells, 99 source provinces, 7 players. Only labels change between configurations.</p>
 <p>Eligible Strait: exactly two significant mouths, at least two banks, both mouths reach wider water. Eligible Gulf: one significant mouth, at least 60% coastline, and wider water beyond it. High oceans are excluded. Each merged geographical water region is counted once, not once per source province or slot.</p>
 <p>Cutoffs below are calibrated to pooled eligible regions. The mean of interpolated per-map percentile cutoffs is also reported, but does not in general achieve the requested pooled rate. Ties make some target percentages unattainable exactly. Maps with zero eligible candidates are excluded from per-map averages, never counted as zero-percent successes.</p>
-<p>Strait cutoff = estimated channel width / sqrt(mean water-province cell count). Gulf cutoff = mouth boundary contacts / maximum distance from shore (approximately half the interior width). A larger cutoff admits broader channels or openings. Current defaults are 0.65 and 1.0.</p>
-<p>This is exploratory calibration on these maps, not an independent validation set. The six comparison maps are deliberately chosen for eligible features; use the all-map data for unbiased sample rates. No application defaults were changed.</p>
+<p>Strait cutoff = estimated channel width / sqrt(mean water-province cell count). Gulf cutoff = mouth boundary contacts / maximum distance from shore (approximately half the interior width). A larger cutoff admits broader channels or openings. Original study defaults were 0.65 and 1.0.</p>
+<p>This is exploratory calibration on these maps, not an independent validation set. The six comparison maps are deliberately chosen for eligible features; use the all-map data for unbiased sample rates. This gallery preserves the study baseline. The subsequently selected application defaults are exploratory Strait 20% and Gulf 100%.</p>
 <p><a href="summary.json">Full summary</a> · <a href="regions.csv">Region measurements CSV</a> · <a href="manifest.json">Seeds and failures</a></p>
 <table><thead><tr><th>Type</th><th>Requested eligible rate</th><th>Pooled cutoff (used)</th><th>Achieved</th><th>Mean per-map cutoff</th><th>Rate using mean cutoff</th><th>Maps with candidates</th></tr></thead><tbody>TABLE</tbody></table></section>
 <section><h2>Exploratory Strait eligibility</h2><p>The current checks leave STRICTCOUNT eligible Straits in this sample; small pools cannot represent every target percentage exactly. The additional experiment keeps two mouths and two banks, but disables the wider-water check. It uses a different denominator and is not a default change or a geographical guarantee.</p><table><tr><th>Target</th><th>Width cutoff</th><th>Achieved (broader eligible pool)</th><th>Mean per-map percentile cutoff</th></tr>EXTRA</table></section>
@@ -182,7 +182,7 @@ select,button{padding:8px} .pair{display:grid;grid-template-columns:1fr 1fr;gap:
 <label>Gulf target <select id="gulf">GULFOPTIONS</select>%</label>
 <div class="legend"><span style="background:#e5a5ee">Strait SOxx</span><span style="background:#f4ce78">Gulf GOxx</span><span style="background:#82b8dd">Ocean xxxO</span><span style="background:#c3dce8">Sea xxxS</span></div>
 <p>The percentages refer to the entire eligible sample, not quotas on this individual map. Province IDs in the JSON remain stable when codes change.</p>
-<div class="pair"><div><h3>Current defaults (0.65 / 1.0)</h3><a id="base-link" target="_blank"><img id="base" alt="Baseline map"></a><pre id="base-info"></pre></div>
+<div class="pair"><div><h3>Original study baseline (0.65 / 1.0)</h3><a id="base-link" target="_blank"><img id="base" alt="Baseline map"></a><pre id="base-info"></pre></div>
 <div><h3>Selected thresholds</h3><a id="new-link" target="_blank"><img id="new" alt="Selected map"></a><pre id="new-info"></pre></div></div></section>
 <section id="all"><h2>All generated maps</h2>LINKS</section>
 <script>const maps=DATA;
@@ -236,7 +236,7 @@ def main():
     exploratory=calibrate(rows,require_wider=False)
     summary={'study_seed':args.seed, 'attempted':args.count,'successful':sum(r['ok'] for r in results),'water_regions':len(rows),
              'high_oceans':sum(r['high_ocean'] for r in rows),'calibration':calibration,
-             'baseline_counts':dict(Counter(r['kind'] for r in rows))}
+             'baseline_counts':dict(Counter(kind_from_features(r,.65,1.0,True)[0] for r in rows))}
     summary['exploratory_calibration']=exploratory
     (root/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     if rows:
