@@ -1,4 +1,5 @@
 {
+  "study_seed": 20261014,
   "attempted": 50,
   "successful": 50,
   "water_regions": 1105,
@@ -46,6 +47,48 @@
         "maps_with_eligible": 5,
         "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
         "all_water_rate": 0.0009049773755656109
+      },
+      {
+        "threshold": 0.556319206164213,
+        "qualified": 2,
+        "eligible": 5,
+        "achieved": 0.4,
+        "target": 0.4,
+        "per_map_mean_threshold": 0.7927194307748427,
+        "per_map_median_threshold": 0.7322520259382125,
+        "mean_threshold_pooled_rate": 0.6,
+        "mean_per_map_rate": 0.4,
+        "maps_with_eligible": 5,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.0018099547511312218
+      },
+      {
+        "threshold": 0.7322520259382125,
+        "qualified": 3,
+        "eligible": 5,
+        "achieved": 0.6,
+        "target": 0.6,
+        "per_map_mean_threshold": 0.7927194307748427,
+        "per_map_median_threshold": 0.7322520259382125,
+        "mean_threshold_pooled_rate": 0.6,
+        "mean_per_map_rate": 0.6,
+        "maps_with_eligible": 5,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.0027149321266968325
+      },
+      {
+        "threshold": 1.0421002114378124,
+        "qualified": 4,
+        "eligible": 5,
+        "achieved": 0.8,
+        "target": 0.8,
+        "per_map_mean_threshold": 0.7927194307748427,
+        "per_map_median_threshold": 0.7322520259382125,
+        "mean_threshold_pooled_rate": 0.6,
+        "mean_per_map_rate": 0.8,
+        "maps_with_eligible": 5,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.0036199095022624436
       }
     ],
     "gulf": [
@@ -90,6 +133,48 @@
         "maps_with_eligible": 45,
         "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
         "all_water_rate": 0.07239819004524888
+      },
+      {
+        "threshold": 4.666666666666667,
+        "qualified": 99,
+        "eligible": 123,
+        "achieved": 0.8048780487804879,
+        "target": 0.8,
+        "per_map_mean_threshold": 4.078268077601411,
+        "per_map_median_threshold": 4.2,
+        "mean_threshold_pooled_rate": 0.6260162601626016,
+        "mean_per_map_rate": 0.8166666666666667,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.08959276018099548
+      },
+      {
+        "threshold": 5.4,
+        "qualified": 111,
+        "eligible": 123,
+        "achieved": 0.9024390243902439,
+        "target": 0.9,
+        "per_map_mean_threshold": 4.353296296296296,
+        "per_map_median_threshold": 4.3916666666666675,
+        "mean_threshold_pooled_rate": 0.7073170731707317,
+        "mean_per_map_rate": 0.9125925925925926,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.10045248868778281
+      },
+      {
+        "threshold": 8.25,
+        "qualified": 123,
+        "eligible": 123,
+        "achieved": 1.0,
+        "target": 1.0,
+        "per_map_mean_threshold": 4.628324514991181,
+        "per_map_median_threshold": 4.666666666666667,
+        "mean_threshold_pooled_rate": 0.7642276422764228,
+        "mean_per_map_rate": 1.0,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.11131221719457013
       }
     ]
   },
@@ -142,6 +227,48 @@
         "maps_with_eligible": 46,
         "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
         "all_water_rate": 0.026244343891402715
+      },
+      {
+        "threshold": 1.2114063071860517,
+        "qualified": 58,
+        "eligible": 146,
+        "achieved": 0.3972602739726027,
+        "target": 0.4,
+        "per_map_mean_threshold": 1.3727389768874776,
+        "per_map_median_threshold": 1.292748266446144,
+        "mean_threshold_pooled_rate": 0.5068493150684932,
+        "mean_per_map_rate": 0.35341614906832297,
+        "maps_with_eligible": 46,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.05248868778280543
+      },
+      {
+        "threshold": 1.4736689024108547,
+        "qualified": 88,
+        "eligible": 146,
+        "achieved": 0.6027397260273972,
+        "target": 0.6,
+        "per_map_mean_threshold": 1.51242448888222,
+        "per_map_median_threshold": 1.4313606310445124,
+        "mean_threshold_pooled_rate": 0.6232876712328768,
+        "mean_per_map_rate": 0.5533126293995859,
+        "maps_with_eligible": 46,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.07963800904977375
+      },
+      {
+        "threshold": 1.795763404363219,
+        "qualified": 117,
+        "eligible": 146,
+        "achieved": 0.8013698630136986,
+        "target": 0.8,
+        "per_map_mean_threshold": 1.693385818596606,
+        "per_map_median_threshold": 1.6296613413194496,
+        "mean_threshold_pooled_rate": 0.7534246575342466,
+        "mean_per_map_rate": 0.7796066252587992,
+        "maps_with_eligible": 46,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.10588235294117647
       }
     ],
     "gulf": [
@@ -186,8 +313,49 @@
         "maps_with_eligible": 45,
         "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
         "all_water_rate": 0.07239819004524888
+      },
+      {
+        "threshold": 4.666666666666667,
+        "qualified": 99,
+        "eligible": 123,
+        "achieved": 0.8048780487804879,
+        "target": 0.8,
+        "per_map_mean_threshold": 4.078268077601411,
+        "per_map_median_threshold": 4.2,
+        "mean_threshold_pooled_rate": 0.6260162601626016,
+        "mean_per_map_rate": 0.8166666666666667,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.08959276018099548
+      },
+      {
+        "threshold": 5.4,
+        "qualified": 111,
+        "eligible": 123,
+        "achieved": 0.9024390243902439,
+        "target": 0.9,
+        "per_map_mean_threshold": 4.353296296296296,
+        "per_map_median_threshold": 4.3916666666666675,
+        "mean_threshold_pooled_rate": 0.7073170731707317,
+        "mean_per_map_rate": 0.9125925925925926,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.10045248868778281
+      },
+      {
+        "threshold": 8.25,
+        "qualified": 123,
+        "eligible": 123,
+        "achieved": 1.0,
+        "target": 1.0,
+        "per_map_mean_threshold": 4.628324514991181,
+        "per_map_median_threshold": 4.666666666666667,
+        "mean_threshold_pooled_rate": 0.7642276422764228,
+        "mean_per_map_rate": 1.0,
+        "maps_with_eligible": 45,
+        "per_map_threshold_method": "Mean of linearly interpolated per-map empirical quantiles, excluding maps with no eligible candidates",
+        "all_water_rate": 0.11131221719457013
       }
     ]
-  },
-  "study_seed": 20261014
+  }
 }

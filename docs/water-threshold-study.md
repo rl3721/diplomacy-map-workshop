@@ -37,9 +37,14 @@ The default is 1.0; higher values allow wider openings.
 | 35% | 2.333333 | 43/123 = 34.96% | 2.977923 |
 | 50% | 3.428571 | 61/123 = 49.59% | 3.346667 |
 | 65% | 4.142857 | 80/123 = 65.04% | 3.696526 |
+| 80% | 4.666667 | 99/123 = 80.49% | 4.078268 |
+| 90% | 5.400000 | 111/123 = 90.24% | 4.353296 |
+| 100% | 8.250000 | 123/123 = 100.00% | 4.628325 |
 
-These label 3.89%, 5.52% and 7.24% of **all** geographical water regions,
-respectively. They intentionally loosen the earlier narrow-mouth definition;
+The first three presets label 3.89%, 5.52% and 7.24% of **all** geographical water
+regions. The higher presets label 8.96%, 10.05% and 11.13% of all water. Even the
+100% setting means all eligible Gulf candidates, not all water provinces.
+They intentionally loosen the earlier narrow-mouth definition;
 manual review should decide whether the resulting shapes deserve Gulf names.
 
 ## Strait results under current eligibility
@@ -49,6 +54,16 @@ advance by 20 percentage points. A 10% target is equally close to 0% and 20%; th
 conservative fit selects 0%. The 15% and 20% targets both select cutoff
 `0.5278615073083401`, giving 1/5 = 20%. These cannot be three meaningfully distinct
 Strait presets without changing eligibility or collecting a different sample.
+
+The added higher targets are achievable exactly within this small pool:
+
+| Requested | Pooled cutoff used | Actual eligible rate |
+|---|---:|---:|
+| 40% | 0.556319 | 2/5 = 40% |
+| 60% | 0.732252 | 3/5 = 60% |
+| 80% | 1.042100 | 4/5 = 80% |
+
+These are thresholds for only five candidates, not robust estimates for new maps.
 
 ## Additional exploratory Strait comparison
 
@@ -65,8 +80,12 @@ The cutoff is estimated channel width divided by
 | 10% | 0.906100 | 15/146 = 10.27% | 1.217042 |
 | 15% | 0.921043 | 21/146 = 14.38% | 1.240989 |
 | 20% | 1.042100 | 29/146 = 19.86% | 1.264149 |
+| 40% | 1.211406 | 58/146 = 39.73% | 1.372739 |
+| 60% | 1.473669 | 88/146 = 60.27% | 1.512424 |
+| 80% | 1.795763 | 117/146 = 80.14% | 1.693386 |
 
-These label 1.36%, 1.90% and 2.62% of all water regions. Removing the wider-water
+The first three label 1.36%, 1.90% and 2.62% of all water regions; the higher
+presets label 5.25%, 7.96% and 10.59%. Removing the wider-water
 check may admit coast-hugging water or features that do not resemble straits;
 this is why the gallery provides both eligibility modes for inspection.
 
@@ -76,8 +95,9 @@ Open `output/water-threshold-study/index.html`. The gallery contains:
 
 - All 50 original maps and their generation reports.
 - Six selected comparison maps: 40, 5, 38, 22, 3 and 21.
-- Baseline beside any of nine Strait/Gulf target combinations, for each of two
-  eligibility modes: **108 comparison SVGs plus six baseline SVGs**.
+- Baseline beside any of 36 Strait/Gulf target combinations, for each of two
+  eligibility modes: **432 comparison SVGs plus six baseline SVGs**. The higher
+  targets reuse the same six review maps for direct comparison with earlier rates.
 - Purple Strait regions, gold Gulf regions, blue Oceans and pale-blue Seas,
   with the generated four-letter codes. Click either map for the full SVG.
 - Full thresholds and achieved rates, seed manifest, raw region CSV and per-map

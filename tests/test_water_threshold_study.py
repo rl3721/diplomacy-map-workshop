@@ -12,6 +12,12 @@ class WaterThresholdStudyTests(unittest.TestCase):
         self.assertEqual(result['achieved'], .6)
         self.assertIsNone(fit_threshold([], .5))
 
+    def test_full_target_includes_largest_and_tied_values(self):
+        result = fit_threshold([2, 2, 4.5, 8.25], 1.0)
+        self.assertEqual(result['threshold'], 8.25)
+        self.assertEqual(result['qualified'], 4)
+        self.assertEqual(result['achieved'], 1.0)
+
     def test_empty_and_ineligible_maps_do_not_dilute_candidate_rate(self):
         rows = []
         for number, value in enumerate([1, 2, 3, 4], 1):

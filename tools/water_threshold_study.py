@@ -14,7 +14,7 @@ from mapgen.generator import Config, Grid, generate, write_svg
 from mapgen.names import assign_names
 from mapgen.water_names import eligible, kind_from_features
 
-TARGETS = {'strait': [.10, .15, .20], 'gulf': [.35, .50, .65]}
+TARGETS = {'strait': [.10, .15, .20, .40, .60, .80], 'gulf': [.35, .50, .65, .80, .90, 1.0]}
 METRICS = {'strait': 'width_ratio', 'gulf': 'mouth_depth_ratio'}
 
 
@@ -158,6 +158,8 @@ def write_gallery(root, results, rows, calibration, selected, exploratory):
     extra = ''.join(f'<tr><td>{p["target"]:.0%}</td><td>{p["threshold"]:.6f}</td><td>{p["qualified"]}/{p["eligible"]} = {p["achieved"]:.1%}</td><td>{p["per_map_mean_threshold"]:.6f}</td></tr>'
                     for p in exploratory['strait'] if p['threshold'] is not None)
     strict_count = calibration['strait'][0]['eligible']
+    target_options = {kind: ''.join(f'<option{" selected" if round(t*100)==default else ""}>{round(t*100)}</option>'
+                                   for t in TARGETS[kind]) for kind, default in [('strait',60),('gulf',90)]}
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Water threshold review</title><style>
 body{font:16px system-ui;margin:24px;background:#eef2f5;color:#18343e}section{background:white;padding:20px;margin:20px 0;border-radius:10px}
@@ -175,9 +177,9 @@ select,button{padding:8px} .pair{display:grid;grid-template-columns:1fr 1fr;gap:
 <table><thead><tr><th>Type</th><th>Requested eligible rate</th><th>Pooled cutoff (used)</th><th>Achieved</th><th>Mean per-map cutoff</th><th>Rate using mean cutoff</th><th>Maps with candidates</th></tr></thead><tbody>TABLE</tbody></table></section>
 <section><h2>Exploratory Strait eligibility</h2><p>The current checks leave STRICTCOUNT eligible Straits in this sample; small pools cannot represent every target percentage exactly. The additional experiment keeps two mouths and two banks, but disables the wider-water check. It uses a different denominator and is not a default change or a geographical guarantee.</p><table><tr><th>Target</th><th>Width cutoff</th><th>Achieved (broader eligible pool)</th><th>Mean per-map percentile cutoff</th></tr>EXTRA</table></section>
 <section><h2>Paired comparison</h2><label>Map <select id="map">OPTIONS</select></label>
-<label>Strait eligibility <select id="mode"><option value="strict">Current checks (STRICTCOUNT candidates)</option><option value="exploratory">Exploratory: two mouths + two banks</option></select></label>
-<label>Strait target <select id="strait"><option>10</option><option selected>15</option><option>20</option></select>%</label>
-<label>Gulf target <select id="gulf"><option>35</option><option selected>50</option><option>65</option></select>%</label>
+<label>Strait eligibility <select id="mode"><option value="strict">Current checks (STRICTCOUNT candidates)</option><option value="exploratory" selected>Exploratory: two mouths + two banks</option></select></label>
+<label>Strait target <select id="strait">STRAITOPTIONS</select>%</label>
+<label>Gulf target <select id="gulf">GULFOPTIONS</select>%</label>
 <div class="legend"><span style="background:#e5a5ee">Strait SOxx</span><span style="background:#f4ce78">Gulf GOxx</span><span style="background:#82b8dd">Ocean xxxO</span><span style="background:#c3dce8">Sea xxxS</span></div>
 <p>The percentages refer to the entire eligible sample, not quotas on this individual map. Province IDs in the JSON remain stable when codes change.</p>
 <div class="pair"><div><h3>Current defaults (0.65 / 1.0)</h3><a id="base-link" target="_blank"><img id="base" alt="Baseline map"></a><pre id="base-info"></pre></div>
@@ -192,6 +194,7 @@ document.getElementById(panel).src=v.svg;document.getElementById(panel+'-link').
 document.getElementById(panel+'-info').textContent='Cutoffs: Strait '+v.strait_width_max.toFixed(6)+'; Gulf '+v.gulf_mouth_depth_max.toFixed(6)+'\\n'+
 'Eligible: '+JSON.stringify(v.eligible)+'\\nClassified: '+JSON.stringify(v.counts);}}
 for(const id of ['map','mode','strait','gulf'])document.getElementById(id).addEventListener('change',show);show();</script></html>'''
+    page = page.replace('STRAITOPTIONS',target_options['strait']).replace('GULFOPTIONS',target_options['gulf'])
     page = page.replace('TABLE',''.join(table)).replace('EXTRA',extra).replace('OPTIONS',options).replace('LINKS',links).replace('STRICTCOUNT',str(strict_count)).replace('DATA',json.dumps(selected))
     page = page.replace('50 attempted seeds',f'{len(results)} attempted seeds')
     (root/'index.html').write_text(page,encoding='utf-8')
@@ -251,7 +254,15 @@ def main():
         kind='strait' if i%2==0 else 'gulf'
         available=[n for n in counts if n not in chosen]
         chosen.append(max(available,key=lambda n:(counts[n][kind],sum(counts[n].values()),-n)))
-    selected=[render_sample(next(r for r in results if r['number']==n),rows,calibration,root,exploratory) for n in chosen]
+    if args.resume and (root/'comparisons.json').exists():
+        previous=json.loads((root/'comparisons.json').read_text(encoding='utf-8'))
+        retained=[m['number'] for m in previous if m['number'] in counts]
+        if retained:
+            chosen=retained
+    selected=[]
+    for n in chosen:
+        selected.append(render_sample(next(r for r in results if r['number']==n),rows,calibration,root,exploratory))
+        print(f'Rendered comparison map {n}: {len(selected)}/{len(chosen)}',flush=True)
     (root/'comparisons.json').write_text(json.dumps(selected,indent=2),encoding='utf-8')
     write_gallery(root,results,rows,calibration,selected,exploratory)
     print(json.dumps(summary,indent=2),flush=True)
