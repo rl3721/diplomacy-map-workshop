@@ -21,7 +21,30 @@ def groups(cells, neighbors):
     return result
 
 
-def classify_water(grid, land, owners, movement):
+def eligible(features, kind, require_wider=True):
+    if features.get('high_ocean', False):
+        return False
+    if kind == 'strait':
+        return features['mouth_count'] == 2 and features['bank_count'] >= 2 and (not require_wider or features['wider_mouth_count'] == 2)
+    if kind == 'gulf':
+        return features['mouth_count'] == 1 and features['coast_fraction'] >= .6 and features['wider_mouth_count'] >= 1
+    raise ValueError('Unknown water kind')
+
+
+def kind_from_features(features, strait_width_max=.65, gulf_mouth_depth_max=1.0, strait_require_wider=True):
+    if features.get('high_ocean', False):
+        return 'ocean', 'Merged high ocean'
+    if eligible(features, 'strait', strait_require_wider) and features['width_ratio'] <= strait_width_max:
+        return 'strait', ('Narrow water between separate banks with two mouths reaching wider water' if strait_require_wider
+                          else 'Exploratory: narrow water between separate banks and two mouths; wider-water check disabled')
+    if (eligible(features, 'gulf') and features['mouth_depth_ratio'] <= gulf_mouth_depth_max):
+        return 'gulf', 'Coast-enclosed water with one mouth narrower than the configured interior-width limit'
+    if features['coast_fraction'] == 0 or (features['coast_fraction'] <= .2 and features['width_ratio'] / 2 >= .35):
+        return 'ocean', 'Open water with low coastal enclosure'
+    return 'sea', 'Coastal, enclosed or ambiguous water; fallback classification'
+
+
+def classify_water(grid, land, owners, movement, strait_width_max=.65, gulf_mouth_depth_max=1.0):
     """Measure native graph geometry, never distances in the SVG projection.
 
     Boundary contacts approximate lengths on the cell mesh. Widths are graph
@@ -89,18 +112,11 @@ def classify_water(grid, land, owners, movement):
             wider.append(len(seen) >= max(4, scale * scale * .15)
                          and max((distance.get(c, scale) for c in seen), default=0) > depth * 1.25)
         mouth_width = max((sum(exits[n] for n in g) for g in mouths), default=0)
-        if region in high:
-            kind, reason = 'ocean', 'Merged high ocean'
-        elif len(mouths) == 2 and len(banks) >= 2 and width_ratio <= .65 and all(wider):
-            kind, reason = 'strait', 'Narrow water between separate banks with two mouths reaching wider water'
-        elif len(mouths) == 1 and fraction >= .6 and mouth_width <= depth and any(wider):
-            kind, reason = 'gulf', 'Coast-enclosed water with one mouth narrower than its interior'
-        elif not shore or (fraction <= .2 and depth / scale >= .35):
-            kind, reason = 'ocean', 'Open water with low coastal enclosure'
-        else:
-            kind, reason = 'sea', 'Coastal, enclosed or ambiguous water; fallback classification'
-        result[region] = {'kind': kind, 'reason': reason, 'coast_fraction': fraction,
+        features = {'high_ocean': region in high, 'coast_fraction': fraction,
                           'mouth_count': len(mouths), 'bank_count': len(banks),
                           'width_ratio': width_ratio, 'mouth_width_ratio': mouth_width / scale,
+                          'mouth_depth_ratio': mouth_width / max(depth, 1e-12),
                           'wider_mouth_count': sum(wider), 'scale_cells': scale}
+        kind, reason = kind_from_features(features, strait_width_max, gulf_mouth_depth_max)
+        result[region] = dict(features, kind=kind, reason=reason)
     return result

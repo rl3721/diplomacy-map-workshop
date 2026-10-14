@@ -10,6 +10,7 @@
 | [Scoring](scoring.md) | Structural metrics, size normalization and current power-balance heuristic |
 | [Outputs](outputs.md) | SVG stages, JSON data, diagnostics and export limitations |
 | [Province names](province-names.md) | Four-letter codes, water classification and colored core markers |
+| [Water threshold study](water-threshold-study.md) | 50-map calibration, eligible rates and paired review gallery |
 | [Architecture](architecture.md) | Directory layout, module responsibilities and browser/local execution |
 | [Development](development.md) | Entry points, tests, verification scope and research utilities |
 | [Deployment](deployment.md) | Pyodide, static builds and automatic GitHub Pages publishing |
