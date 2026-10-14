@@ -25,7 +25,7 @@ Names remain unique across land and water. A land code can incidentally match
 one of the water patterns; terrain/category metadata is authoritative.
 
 A merged high ocean takes its representative province's code; its separate
-movement slots are displayed as `ABCD.1`, `ABCD.2`, etc. Merged source provinces
+movement slots are displayed as `ABCO1`, `ABCO2`, etc. Merged source provinces
 retain their own unique source names in JSON. Numeric province IDs and existing
 movement keys remain stable; `name`, `display_name` and `neighbor_display_names`
 provide the human-readable mapping without breaking graph references.
@@ -35,8 +35,9 @@ throughout a map, identical in the Province and Power SVGs. The common size is
 capped relative to the displayed map and reduced uniformly if needed to fit.
 Each SC uses its largest fitting visible fragment, so a tiny fragment at the
 projection seam does not shrink every marker. Label fonts can still vary to
-fit province geometry. Starting home-core circles are filled with the assigned power color in both
-Province and Power views; neutral centers are white circles. Existing `core`
+fit province geometry. Markers use twice the previous radius (twice the diameter), with a dark outline
+and a dark central dot. The ring between them uses the assigned power color
+in both Province and Power views; neutral centers use a white ring. Existing `core`
 metadata determines the color. Marker sizes are unchanged by ownership.
 
 ## Implemented water rules (version 2)

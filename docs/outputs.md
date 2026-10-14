@@ -19,7 +19,9 @@ SVG files contain vector paths, no embedded raster images. Coordinates retain he
 These SVGs are standalone visuals, **not** DiplomacyGM's game-import schema.
 Provinces display four-letter codes; merged oceans display code-plus-slot labels.
 Supply-center circles use a common size per map. Home-core circles use their
-power's color; neutral circles remain white in both Province and Power SVGs.
+power's color between a dark outer outline and center dot; neutral rings remain
+white in both Province and Power SVGs. High-ocean slots display as `ABCO1`,
+`ABCO2`, etc.; their internal movement identifiers retain numeric dot notation.
 Water names use Ocean `xxxO`, Sea `xxxS`, Gulf `GOxx` and Strait `SOxx` patterns.
 See [province names](province-names.md) for classification rules and limitations.
 Numeric IDs remain machine identifiers; province `name` and movement

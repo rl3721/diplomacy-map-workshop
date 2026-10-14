@@ -63,7 +63,7 @@ def assign_names(provinces, movement, seed, water_classes=None):
     for ocean in movement['oceans']:
         ocean['display_name'] = by_id[ocean['id']]['name']
     for location in movement['locations']:
-        suffix = '.' + location['name'].split('.', 1)[1] if '.' in location['name'] else ''
+        suffix = location['name'].split('.', 1)[1] if '.' in location['name'] else ''
         location['display_name'] = by_id[location['region_id']]['name'] + suffix
     location_names = {p['name']: p['display_name'] for p in movement['locations']}
     for location in movement['locations']:

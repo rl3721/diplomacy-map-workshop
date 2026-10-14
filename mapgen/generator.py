@@ -643,12 +643,13 @@ def write_svg(path, title, grid, labels, colors, province_labels=None, high_ocea
         center_label = display_name(pid)
         core_color = core_colors.get(pid + 1, 'white')
         for index, (x, y, font) in enumerate(center_placements[pid]):
-            radius = common_font * .48
+            radius = common_font * .96
             cx = x - font * (.35 * len(center_label) + .45)
             lines.append(f'<g class="supply-center" data-province="{pid + 1}" id="sc-{pid + 1}-{index}">'
                          f'<title>Supply center {display_name(pid)}: {html.escape(power_owners.get(pid + 1) or "unassigned")}</title>'
                          f'<circle class="core-marker" cx="{cx:.6f}" cy="{y:.6f}" r="{radius:.6f}" fill="{core_color}" stroke="#142f36" stroke-width="{radius*.25:.6f}"/>'
-                         f'<text x="{cx + font*.8:.6f}" y="{y:.6f}" dominant-baseline="central" '
+                         f'<circle class="core-dot" cx="{cx:.6f}" cy="{y:.6f}" r="{radius*.35:.6f}" fill="#142f36"/>'
+                         f'<text x="{cx + max(font*.8, radius*1.3):.6f}" y="{y:.6f}" dominant-baseline="central" '
                          f'font-family="sans-serif" font-size="{font:.6f}" fill="#102d35" stroke="white" '
                          f'stroke-width="{font*.12:.6f}" paint-order="stroke">{html.escape(center_label)}</text></g>')
     for pid in sorted(blocked):

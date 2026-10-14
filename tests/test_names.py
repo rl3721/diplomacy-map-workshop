@@ -54,7 +54,7 @@ class ProvinceNamesTests(unittest.TestCase):
         for ocean in graph['oceans']:
             self.assertEqual(len(ocean['display_name']), 4)
             slots = [p for p in graph['locations'] if p['region_id'] == ocean['id']]
-            self.assertTrue(all(p['display_name'].startswith(ocean['display_name'] + '.') for p in slots))
+            self.assertTrue(all(p['display_name'] == ocean['display_name'] + p['name'].split('.')[1] for p in slots))
         lookup = {p['name']: p['display_name'] for p in graph['locations']}
         for location in graph['locations']:
             self.assertEqual(location['neighbor_display_names'], [lookup[n] for n in location['neighbors']])
@@ -89,4 +89,8 @@ class ProvinceNamesTests(unittest.TestCase):
             groups = ET.parse(path).findall('.//s:g[@class="supply-center"]', ns)
             fills = {int(g.attrib['data-province']): g.find('s:circle', ns).attrib['fill'] for g in groups}
             self.assertEqual(fills, {1:'hsl(137,60%,70%)', 2:'white'})
-            self.assertTrue(all(len(g.findall('s:circle',ns)) == 1 for g in groups))
+            self.assertTrue(all(len(g.findall('s:circle',ns)) == 2 for g in groups))
+            for group in groups:
+                outer, inner = group.findall('s:circle',ns)
+                self.assertEqual(inner.attrib['fill'], '#142f36')
+                self.assertAlmostEqual(float(inner.attrib['r']) / float(outer.attrib['r']), .35, places=5)
